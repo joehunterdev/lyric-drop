@@ -44,7 +44,7 @@ function AppContent() {
           </h1>
           <div className="flex items-center gap-2">
             <ExportButton
-              videoFile={videoState.file}
+              videoRef={videoRef}
               segments={segments}
             />
             <Button

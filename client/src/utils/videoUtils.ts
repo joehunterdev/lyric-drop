@@ -93,6 +93,59 @@ export function isValidVideoFile(file: File): boolean {
 }
 
 /**
+ * Check if file is a browser-native format that can be exported via Canvas
+ * Only MP4 (H.264) and WebM are reliably supported for Canvas export
+ */
+export function isExportableFormat(file: File): boolean {
+  const exportableTypes = [
+    'video/mp4',
+    'video/webm',
+  ]
+  
+  if (exportableTypes.includes(file.type)) {
+    return true
+  }
+  
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+  return ['.mp4', '.webm'].includes(ext)
+}
+
+/**
+ * Check if video element can actually be drawn to canvas
+ * This tests if the browser can decode the video
+ */
+export async function canVideoBeExported(video: HTMLVideoElement): Promise<boolean> {
+  return new Promise((resolve) => {
+    // If video has no dimensions, it can't be decoded
+    if (!video.videoWidth || !video.videoHeight) {
+      resolve(false)
+      return
+    }
+    
+    // Try to draw a frame to canvas
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        resolve(false)
+        return
+      }
+      
+      ctx.drawImage(video, 0, 0, 1, 1)
+      
+      // Check if we got actual pixel data (not blank)
+      const imageData = ctx.getImageData(0, 0, 1, 1)
+      const hasData = imageData.data.some(v => v !== 0)
+      resolve(hasData)
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+/**
  * Get human-readable file size
  */
 export function formatFileSize(bytes: number): string {

@@ -1,10 +1,8 @@
 import { useRef, useCallback } from 'react'
-import { Play, Pause, RotateCcw, Upload, Loader2, FileVideo } from 'lucide-react'
+import { Play, Pause, RotateCcw, Upload, FileVideo } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { formatTime } from '@/utils'
-import { useFFmpeg, TranscodeStatus } from '@/hooks'
-import { useSettings } from '@/contexts'
 import type { VideoState, LyricSegment } from '@/types'
 
 interface VideoPlayerProps {
@@ -25,34 +23,26 @@ export function VideoPlayer({
   onSeek,
 }: VideoPlayerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { isFormatSupported, transcodeToMp4, progress } = useFFmpeg()
-  const { settings } = useSettings()
-  
-  const isTranscoding = progress.status === TranscodeStatus.TRANSCODING || 
-                        progress.status === TranscodeStatus.LOADING
   
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    
+    // Reset input FIRST so same file can be selected again
+    e.target.value = ''
+    
     if (!file) return
     
-    // Check if format is natively supported
-    if (isFormatSupported(file)) {
-      await onLoadVideo(file)
-    } else if (settings.transcodeOnUpload) {
-      // Transcode if enabled in settings
-      const transcodedFile = await transcodeToMp4(file)
-      if (transcodedFile) {
-        await onLoadVideo(transcodedFile)
-      }
-    } else {
-      // Try to load anyway - browser might handle it
-      // If not, user will see an error or no playback
-      await onLoadVideo(file)
+    // Only allow MP4 and WebM (formats that work with Canvas export)
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    const isSupported = file.type === 'video/mp4' || file.type === 'video/webm' || ext === 'mp4' || ext === 'webm'
+    
+    if (!isSupported) {
+      alert('Only MP4 and WebM formats are supported.\n\nPlease convert your video using HandBrake (free) or an online converter like CloudConvert.')
+      return
     }
     
-    // Reset input so same file can be selected again
-    e.target.value = ''
-  }, [onLoadVideo, isFormatSupported, transcodeToMp4, settings.transcodeOnUpload])
+    await onLoadVideo(file)
+  }, [onLoadVideo])
   
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click()
@@ -111,7 +101,7 @@ export function VideoPlayer({
             <p className="text-sm text-muted-foreground mt-1">MP4, MOV, WebM, AVI & more</p>
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
               <FileVideo className="w-3 h-3" />
-              Non-MP4 files will be converted automatically
+              Only MP4 and WebM formats supported
             </p>
           </div>
         )}
@@ -119,7 +109,7 @@ export function VideoPlayer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo,video/x-matroska,.mov,.avi,.mkv,.m4v"
+          accept="video/mp4,video/webm,.mp4,.webm"
           className="hidden"
           onChange={handleFileSelect}
           disabled={isTranscoding}
