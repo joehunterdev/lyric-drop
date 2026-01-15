@@ -17,16 +17,19 @@ export default defineConfig(({ mode }) => {
     server: {
       host: mode === 'development' ? env.VITE_DEV_HOST || 'localhost' : true,
       port: parseInt(env.VITE_DEV_PORT || '8081'),
+      allowedHosts: ['.local', 'localhost'],
       hmr: {
         overlay: true,
       },
       watch: {
         usePolling: true,
       },
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      },
+      // COOP/COEP headers for SharedArrayBuffer (FFmpeg WASM)
+      // Commented out: requires HTTPS or localhost to work
+      // headers: {
+      //   'Cross-Origin-Opener-Policy': 'same-origin',
+      //   'Cross-Origin-Embedder-Policy': 'require-corp',
+      // },
     },
     optimizeDeps: {
       exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],

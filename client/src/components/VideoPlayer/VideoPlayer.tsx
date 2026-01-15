@@ -4,6 +4,7 @@ import { Play, Pause, RotateCcw, Upload, Loader2, FileVideo } from 'lucide-react
 import { Button } from '@/components/ui/button'
 import { formatTime } from '@/utils'
 import { useFFmpeg, TranscodeStatus } from '@/hooks'
+import { useSettings } from '@/contexts'
 import type { VideoState, LyricSegment } from '@/types'
 
 interface VideoPlayerProps {
@@ -25,6 +26,7 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { isFormatSupported, transcodeToMp4, progress } = useFFmpeg()
+  const { settings } = useSettings()
   
   const isTranscoding = progress.status === TranscodeStatus.TRANSCODING || 
                         progress.status === TranscodeStatus.LOADING
@@ -36,17 +38,21 @@ export function VideoPlayer({
     // Check if format is natively supported
     if (isFormatSupported(file)) {
       await onLoadVideo(file)
-    } else {
-      // Need to transcode
+    } else if (settings.transcodeOnUpload) {
+      // Transcode if enabled in settings
       const transcodedFile = await transcodeToMp4(file)
       if (transcodedFile) {
         await onLoadVideo(transcodedFile)
       }
+    } else {
+      // Try to load anyway - browser might handle it
+      // If not, user will see an error or no playback
+      await onLoadVideo(file)
     }
     
     // Reset input so same file can be selected again
     e.target.value = ''
-  }, [onLoadVideo, isFormatSupported, transcodeToMp4])
+  }, [onLoadVideo, isFormatSupported, transcodeToMp4, settings.transcodeOnUpload])
   
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click()

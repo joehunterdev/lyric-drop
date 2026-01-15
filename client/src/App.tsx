@@ -1,11 +1,19 @@
+import { useState } from 'react'
+import { Settings } from 'lucide-react'
+
 import { useVideoPlayer, useTimeline } from '@/hooks'
+import { SettingsProvider } from '@/contexts'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { Timeline } from '@/components/Timeline'
 import { LyricEditor } from '@/components/LyricEditor'
 import { ExportButton } from '@/components/ExportButton'
+import { Sidebar } from '@/components/layout'
+import { Button } from '@/components/ui/button'
 import './index.css'
 
-function App() {
+function AppContent() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  
   const {
     videoRef,
     videoState,
@@ -34,11 +42,19 @@ function App() {
           <h1 className="text-xl font-bold text-foreground">
             Lyric Overlay Editor
           </h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <ExportButton
               videoFile={videoState.file}
               segments={segments}
             />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              title="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       </header>
@@ -88,6 +104,9 @@ function App() {
         </div>
       </main>
       
+      {/* Sidebar */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
       {/* Footer */}
       <footer className="border-t border-border px-4 py-3 mt-auto">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
@@ -95,6 +114,14 @@ function App() {
         </div>
       </footer>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <SettingsProvider>
+      <AppContent />
+    </SettingsProvider>
   )
 }
 

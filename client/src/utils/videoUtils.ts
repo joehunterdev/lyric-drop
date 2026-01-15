@@ -68,10 +68,28 @@ export function revokeVideoUrl(url: string): void {
 
 /**
  * Validate if file is a supported video format
+ * Accepts common video formats - browser may or may not be able to play them
  */
 export function isValidVideoFile(file: File): boolean {
-  const validTypes = ['video/mp4', 'video/webm', 'video/ogg']
-  return validTypes.includes(file.type)
+  const validTypes = [
+    'video/mp4',
+    'video/webm', 
+    'video/ogg',
+    'video/quicktime',    // .mov
+    'video/x-msvideo',    // .avi
+    'video/x-matroska',   // .mkv
+    'video/x-m4v',        // .m4v
+  ]
+  
+  // Check MIME type
+  if (validTypes.includes(file.type)) {
+    return true
+  }
+  
+  // Fallback: check file extension for files with empty/generic MIME
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+  const validExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.m4v']
+  return validExtensions.includes(ext)
 }
 
 /**
