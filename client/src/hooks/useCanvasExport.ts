@@ -173,8 +173,8 @@ export function useCanvasExport({
         throw new Error('Failed to get canvas context')
       }
 
-      // Create MediaRecorder
-      const stream = canvas.captureStream(30) // 30 fps
+      // Create MediaRecorder with configured framerate
+      const stream = canvas.captureStream(EXPORT_FRAMERATE)
       
       // Add audio track if video has audio
       const audioTracks = (video as HTMLVideoElement & { captureStream?: () => MediaStream })
@@ -192,11 +192,12 @@ export function useCanvasExport({
           : 'video/webm'
 
       logger.info('Using MIME type:', mimeType)
+      logger.info('Export settings:', { bitrate: EXPORT_BITRATE, framerate: EXPORT_FRAMERATE })
 
       const chunks: Blob[] = []
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 5000000, // 5 Mbps
+        videoBitsPerSecond: EXPORT_BITRATE,
       })
       mediaRecorderRef.current = mediaRecorder
 

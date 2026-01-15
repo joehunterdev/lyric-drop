@@ -146,6 +146,7 @@ Best for production at scale, overkill for personal/MVP use.
 **Goal:** Export videos quickly without server-side processing
 
 **Approach:** Canvas + MediaRecorder
+
 - Plays video on a hidden canvas
 - Draws lyric overlays in real-time
 - Records the composited output
@@ -159,17 +160,79 @@ Best for production at scale, overkill for personal/MVP use.
 ```
 
 **Benefits:**
+
 - ✅ No server required (works on Hostinger shared hosting)
 - ✅ Real-time speed (not 10-20x slower like WASM)
 - ✅ No FFmpeg dependency
 - ✅ Works offline
+- ✅ Configurable quality via environment variables
 
 **Limitations:**
-- Output format is WebM (not MP4) - but platforms accept WebM
-- Quality depends on canvas rendering
-- Must play through entire video to export
 
-**Status:** Implementing in `ExportButton.tsx`
+- Output format is WebM (not MP4) - but all platforms accept WebM
+- Quality depends on bitrate setting (configurable)
+- Must play through entire video to export
+- Only MP4 and WebM input files supported
+
+**Quality Notes:**
+
+| Bitrate | Quality | ~File Size (20s) |
+|---------|---------|------------------|
+| 5 Mbps | Good | ~12 MB |
+| 10 Mbps | Better | ~25 MB |
+| 15 Mbps | High | ~37 MB |
+| 20 Mbps | Very High | ~50 MB |
+
+> **Note:** Instagram/TikTok will re-compress on upload anyway, so very high bitrates mainly matter for archival copies.
+
+**Status:** ✅ Implemented in `useCanvasExport.ts`
+
+---
+
+## Configuration
+
+All export and upload settings are configurable via `.env` files:
+
+```env
+# ===========================================
+# Export Settings
+# ===========================================
+
+# Video bitrate in bits per second
+# 5000000 = 5 Mbps, 10000000 = 10 Mbps, 15000000 = 15 Mbps
+VITE_EXPORT_BITRATE=15000000
+
+# Export frame rate (fps)
+VITE_EXPORT_FRAMERATE=30
+
+# ===========================================
+# File Upload Settings
+# ===========================================
+
+# Allowed video file extensions (comma-separated)
+VITE_ALLOWED_VIDEO_EXTENSIONS=.mp4,.webm
+
+# Allowed video MIME types (comma-separated)
+VITE_ALLOWED_VIDEO_TYPES=video/mp4,video/webm
+
+# Maximum file size in bytes (1GB = 1073741824)
+VITE_MAX_FILE_SIZE=1073741824
+
+# ===========================================
+# Lyric Settings
+# ===========================================
+
+# Maximum number of lyric segments
+VITE_MAX_SEGMENTS=500
+
+# Font size as percentage of video height
+VITE_LYRIC_FONT_SIZE_PERCENT=5
+
+# Background opacity (0-1)
+VITE_LYRIC_BG_OPACITY=0.7
+```
+
+**Config utility:** `client/src/utils/config.ts`
 
 ---
 

@@ -2,7 +2,13 @@ import { useRef, useCallback } from 'react'
 import { Play, Pause, RotateCcw, Upload, FileVideo } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { formatTime } from '@/utils'
+import { 
+  formatTime, 
+  validateVideoFile, 
+  formatMaxFileSize,
+  ALLOWED_VIDEO_EXTENSIONS,
+  ALLOWED_VIDEO_TYPES,
+} from '@/utils'
 import type { VideoState, LyricSegment } from '@/types'
 
 interface VideoPlayerProps {
@@ -32,12 +38,10 @@ export function VideoPlayer({
     
     if (!file) return
     
-    // Only allow MP4 and WebM (formats that work with Canvas export)
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    const isSupported = file.type === 'video/mp4' || file.type === 'video/webm' || ext === 'mp4' || ext === 'webm'
-    
-    if (!isSupported) {
-      alert('Only MP4 and WebM formats are supported.\n\nPlease convert your video using HandBrake (free) or an online converter like CloudConvert.')
+    // Validate file using config
+    const validation = validateVideoFile(file)
+    if (!validation.valid) {
+      alert(`${validation.error}\n\nPlease convert your video using HandBrake (free) or an online converter like CloudConvert.`)
       return
     }
     
@@ -83,7 +87,7 @@ export function VideoPlayer({
             <p className="text-lg font-medium">Click to upload video</p>
             <p className="text-sm text-muted-foreground mt-1">
               <FileVideo className="w-3 h-3 inline mr-1" />
-              MP4 and WebM only
+              {ALLOWED_VIDEO_EXTENSIONS.join(', ')} only (max {formatMaxFileSize()})
             </p>
           </div>
         )}
@@ -91,7 +95,7 @@ export function VideoPlayer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/mp4,video/webm,.mp4,.webm"
+          accept={[...ALLOWED_VIDEO_TYPES, ...ALLOWED_VIDEO_EXTENSIONS].join(',')}
           className="hidden"
           onChange={handleFileSelect}
         />
