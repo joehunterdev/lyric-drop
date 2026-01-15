@@ -196,10 +196,13 @@ export function useCanvasExport({
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunks.push(e.data)
+          console.log('[Export] Chunk received:', e.data.size, 'bytes')
         }
       }
 
       mediaRecorder.onstop = () => {
+        console.log('[Export] MediaRecorder stopped, chunks:', chunks.length)
+        
         if (!isExportingRef.current) {
           // Export was cancelled
           setProgress({
@@ -212,15 +215,27 @@ export function useCanvasExport({
 
         // Create download
         const blob = new Blob(chunks, { type: mimeType })
+        console.log('[Export] Created blob:', blob.size, 'bytes')
+        
         const url = URL.createObjectURL(blob)
         
         const a = document.createElement('a')
         a.href = url
         a.download = `lyric-overlay-${Date.now()}.webm`
+        a.style.display = 'none'
         document.body.appendChild(a)
+        
+        console.log('[Export] Triggering download...')
         a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        
+        // Mark export as complete
+        isExportingRef.current = false
+        
+        // Small delay before cleanup
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }, 100)
 
         logger.info('Export complete', { size: blob.size })
 
@@ -290,7 +305,8 @@ export function useCanvasExport({
           console.log('[Export] Video ended, stopping recorder')
           video.pause()
           mediaRecorder.stop()
-          isExportingRef.current = false
+          // Don't set isExportingRef.current = false here!
+          // The onstop callback needs it to be true to trigger download
           return
         }
 

@@ -56,24 +56,7 @@ export function VideoPlayer({
     <div className="flex flex-col gap-4">
       {/* Video Container */}
       <div className="relative aspect-[9/16] max-h-[60vh] bg-black rounded-lg overflow-hidden">
-        {isTranscoding ? (
-          // Transcoding State
-          <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
-            <Loader2 className="w-12 h-12 mb-4 animate-spin text-primary" />
-            <p className="text-lg font-medium">{progress.message}</p>
-            {progress.progress > 0 && (
-              <div className="mt-4 w-48">
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${progress.progress}%` }}
-                  />
-                </div>
-                <p className="text-sm text-center mt-2">{progress.progress}%</p>
-              </div>
-            )}
-          </div>
-        ) : videoState.url ? (
+        {videoState.url ? (
           <>
             <video
               ref={videoRef}
@@ -98,10 +81,9 @@ export function VideoPlayer({
           >
             <Upload className="w-12 h-12 mb-4" />
             <p className="text-lg font-medium">Click to upload video</p>
-            <p className="text-sm text-muted-foreground mt-1">MP4, MOV, WebM, AVI & more</p>
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <FileVideo className="w-3 h-3" />
-              Only MP4 and WebM formats supported
+            <p className="text-sm text-muted-foreground mt-1">
+              <FileVideo className="w-3 h-3 inline mr-1" />
+              MP4 and WebM only
             </p>
           </div>
         )}
@@ -112,7 +94,6 @@ export function VideoPlayer({
           accept="video/mp4,video/webm,.mp4,.webm"
           className="hidden"
           onChange={handleFileSelect}
-          disabled={isTranscoding}
         />
       </div>
       
