@@ -1,0 +1,39 @@
+# Agent/Copilot configuration (project-specific, not for repo)
+.github/
+
+# Private docs and test files (not for repo)
+.docs/.private/
+
+# Large video/media files
+*.mov
+*.avi
+*.mkv
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Package manager locks (keep one, remove others)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
