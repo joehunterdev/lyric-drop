@@ -1,6 +1,13 @@
 import { useState, useCallback, useRef } from 'react'
 
-import { logger, canVideoBeExported } from '@/utils'
+import { 
+  logger, 
+  canVideoBeExported,
+  EXPORT_BITRATE,
+  EXPORT_FRAMERATE,
+  LYRIC_FONT_SIZE_PERCENT,
+  LYRIC_BG_OPACITY,
+} from '@/utils'
 import { ExportStatus } from '@/types/enums'
 import type { LyricSegment, ExportProgress } from '@/types'
 
@@ -59,8 +66,8 @@ export function useCanvasExport({
     const activeSegment = getActiveSegment(video.currentTime)
     
     if (activeSegment) {
-      // Calculate font size relative to video height
-      const fontSize = Math.round(height * 0.05) // 5% of video height
+      // Calculate font size relative to video height (from config)
+      const fontSize = Math.round(height * (LYRIC_FONT_SIZE_PERCENT / 100))
       const padding = Math.round(height * 0.02)
       const bottomMargin = Math.round(height * 0.12) // Position above bottom
       
@@ -82,8 +89,8 @@ export function useCanvasExport({
       const boxX = (width - boxWidth) / 2
       const boxY = height - bottomMargin - boxHeight
       
-      // Draw semi-transparent background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      // Draw semi-transparent background (from config)
+      ctx.fillStyle = `rgba(0, 0, 0, ${LYRIC_BG_OPACITY})`
       ctx.beginPath()
       ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8)
       ctx.fill()
