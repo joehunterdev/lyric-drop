@@ -69,7 +69,7 @@ export function VideoPlayer({
               playsInline
             />
             
-            {/* Lyric Overlay */}
+            {/* Lyric Drop */}
             {activeSegment && (
               <div className="absolute inset-x-0 bottom-16 flex justify-center px-4">
                 <div className="bg-black/70 text-white text-lg md:text-2xl font-bold px-6 py-3 rounded-lg text-center max-w-[90%]">

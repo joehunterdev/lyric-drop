@@ -1,4 +1,4 @@
-# Lyric Overlay Editor
+# Lyric Drop
 
 > A React + TypeScript application for adding synchronized lyrics to short-form video content.
 
@@ -6,11 +6,11 @@
 
 ## 📋 Overview
 
-Lyric Overlay is a web-based video editor designed to simplify the process of adding lyric overlays to videos destined for social media platforms like **Instagram**, **TikTok**, and **YouTube**.
+Lyric Drop is a web-based video editor designed to simplify the process of adding Lyric Drops to videos destined for social media platforms like **Instagram**, **TikTok**, and **YouTube**.
 
 ### The Problem
 
-Existing lyric overlay tools often require users to manually segment large blocks of lyrics into smaller chunks and position them frame-by-frame across a timeline. This becomes tedious when working with full song lyrics (3+ pages) over videos ranging from 60 seconds to 5 minutes.
+Existing Lyric Drop tools often require users to manually segment large blocks of lyrics into smaller chunks and position them frame-by-frame across a timeline. This becomes tedious when working with full song lyrics (3+ pages) over videos ranging from 60 seconds to 5 minutes.
 
 ### The Solution
 

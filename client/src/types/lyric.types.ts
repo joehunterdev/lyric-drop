@@ -32,7 +32,7 @@ export interface Project {
 }
 
 /**
- * Style options for lyric overlay
+ * Style options for Lyric Drop
  */
 export interface LyricStyle {
   fontSize: number

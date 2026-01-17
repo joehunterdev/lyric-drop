@@ -23,7 +23,7 @@ interface UseCanvasExportReturn {
 }
 
 /**
- * Hook for exporting video with lyric overlays using Canvas + MediaRecorder
+ * Hook for exporting video with Lyric Drops using Canvas + MediaRecorder
  * This approach exports in real-time (30s video = ~30s export) without slow WASM transcoding
  */
 export function useCanvasExport({ 
@@ -51,7 +51,7 @@ export function useCanvasExport({
   }, [segments])
 
   /**
-   * Draw video frame with lyric overlay to canvas
+   * Draw video frame with Lyric Drop to canvas
    */
   const drawFrame = useCallback((
     ctx: CanvasRenderingContext2D, 

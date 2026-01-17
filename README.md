@@ -1,4 +1,4 @@
-# 🎤 Lyric Overlay Editor
+# 🎤 Lyric Drop
 
 > Add synchronized lyrics to short-form videos for TikTok, Instagram Reels, and YouTube Shorts — no video editing experience required.
 
@@ -45,7 +45,7 @@ Open [http://localhost:8081](http://localhost:8081) in your browser.
 1. **Upload** your video (MP4, MOV, or other supported formats)
 2. **Paste** your full lyrics into the editor
 3. **Adjust** timing on the visual timeline
-4. **Preview** your video with lyric overlays
+4. **Preview** your video with Lyric Drops
 5. **Export** and share on your favorite platform
 
 ---

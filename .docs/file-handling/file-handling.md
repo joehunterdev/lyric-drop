@@ -3,7 +3,7 @@
 ### The Problem
 Video processing in the browser (FFmpeg WASM) is **10-20x slower** than native processing. This affects:
 - Transcoding non-MP4 formats (MOV, AVI, etc.)
-- Exporting final video with lyric overlays burned in
+- Exporting final video with Lyric Drops burned in
 
 ### Questions
 - What file requirements are there?
@@ -148,7 +148,7 @@ Best for production at scale, overkill for personal/MVP use.
 **Approach:** Canvas + MediaRecorder
 
 - Plays video on a hidden canvas
-- Draws lyric overlays in real-time
+- Draws Lyric Drops in real-time
 - Records the composited output
 - Exports at **playback speed** (30s video = ~30s export)
 
