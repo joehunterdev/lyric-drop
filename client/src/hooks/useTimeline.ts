@@ -66,24 +66,48 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   
   const updateSegment = useCallback((id: string, updates: Partial<LyricSegment>) => {
     setSegments(prev => {
-      const updated = prev.map(seg => {
-        if (seg.id !== id) return seg
-        
-        let newSegment = { ...seg }
-        
-        if (updates.startTime !== undefined || updates.endTime !== undefined) {
-          newSegment = updateSegmentTiming(
-            newSegment,
-            updates.startTime ?? seg.startTime,
-            updates.endTime ?? seg.endTime
-          )
+      // Find the index of the segment being updated
+      const segmentIndex = prev.findIndex(seg => seg.id === id)
+      if (segmentIndex === -1) return prev
+      
+      const currentSegment = prev[segmentIndex]
+      
+      // Calculate the new timing
+      const newStartTime = updates.startTime ?? currentSegment.startTime
+      const newEndTime = updates.endTime ?? currentSegment.endTime
+      
+      // Calculate how much the end time shifted (for cascading to following segments)
+      const endTimeShift = newEndTime - currentSegment.endTime
+      
+      // Update all segments
+      const updated = prev.map((seg, index) => {
+        if (seg.id === id) {
+          // Update the target segment
+          let newSegment = { ...seg }
+          
+          if (updates.startTime !== undefined || updates.endTime !== undefined) {
+            newSegment = updateSegmentTiming(newSegment, newStartTime, newEndTime)
+          }
+          
+          if (updates.text !== undefined) {
+            newSegment = updateSegmentText(newSegment, updates.text)
+          }
+          
+          return newSegment
         }
         
-        if (updates.text !== undefined) {
-          newSegment = updateSegmentText(newSegment, updates.text)
+        // Shift all following segments by the same amount the end time changed
+        if (index > segmentIndex && endTimeShift !== 0) {
+          const shiftedStart = seg.startTime + endTimeShift
+          const shiftedEnd = seg.endTime + endTimeShift
+          
+          // Only shift if times remain valid (not negative)
+          if (shiftedStart >= 0) {
+            return updateSegmentTiming(seg, shiftedStart, shiftedEnd)
+          }
         }
         
-        return newSegment
+        return seg
       })
       
       return sortSegmentsByTime(updated)
