@@ -3,7 +3,8 @@ import { ZoomIn, ZoomOut } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { cn, formatTime } from '@/utils'
+import { TimelineSegment } from './TimelineSegment'
+import { formatTime } from '@/utils'
 import type { LyricSegment, TimelineState } from '@/types'
 
 interface TimelineProps {
@@ -25,6 +26,7 @@ export function Timeline({
   duration,
   timelineState,
   onSelectSegment,
+  onUpdateSegment,
   onSeek,
   onZoom,
 }: TimelineProps) {
@@ -127,26 +129,15 @@ export function Timeline({
           {/* Segments Track */}
           <div className="absolute top-8 left-0 right-0 bottom-0 bg-timeline-track">
             {segments.map(segment => (
-              <div
+              <TimelineSegment
                 key={segment.id}
-                className={cn(
-                  'absolute top-2 bottom-2 rounded cursor-pointer transition-all',
-                  'bg-timeline-segment hover:brightness-110',
-                  selectedSegmentId === segment.id && 'ring-2 ring-primary ring-offset-2 ring-offset-timeline-bg'
-                )}
-                style={{
-                  left: timeToPixels(segment.startTime),
-                  width: Math.max(timeToPixels(segment.endTime - segment.startTime), 4),
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectSegment(segment.id)
-                }}
-              >
-                <div className="px-2 py-1 text-xs text-white truncate">
-                  {segment.text}
-                </div>
-              </div>
+                segment={segment}
+                isSelected={selectedSegmentId === segment.id}
+                pixelsPerSecond={pixelsPerSecond}
+                duration={duration}
+                onSelect={onSelectSegment}
+                onUpdate={onUpdateSegment}
+              />
             ))}
           </div>
           
