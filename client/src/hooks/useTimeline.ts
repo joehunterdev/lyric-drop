@@ -158,18 +158,38 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   }, [segments])
   
   // Insert a spacer at a given time, shifting all following segments
+  // If cursor is over a segment, snap to left or right edge based on position
   const insertSpacer = useCallback((atTime: number, duration: number = 2) => {
-    const spacer = createSpacerSegment(atTime, atTime + duration)
-    
     setSegments(prev => {
-      // Find segments that start at or after the insertion point
+      // Check if cursor is inside a segment
+      const segmentAtCursor = prev.find(seg => atTime >= seg.startTime && atTime < seg.endTime)
+      
+      let insertionPoint = atTime
+      
+      if (segmentAtCursor) {
+        // Determine if cursor is on left or right half of the segment
+        const segmentMidpoint = (segmentAtCursor.startTime + segmentAtCursor.endTime) / 2
+        
+        if (atTime < segmentMidpoint) {
+          // Insert BEFORE this segment (at its start)
+          insertionPoint = segmentAtCursor.startTime
+        } else {
+          // Insert AFTER this segment (at its end)
+          insertionPoint = segmentAtCursor.endTime
+        }
+      }
+      
+      // Now shift all segments that start at or after the insertion point
       const updated = prev.map(seg => {
-        if (seg.startTime >= atTime) {
+        if (seg.startTime >= insertionPoint) {
           // Shift this segment forward by spacer duration
           return updateSegmentTiming(seg, seg.startTime + duration, seg.endTime + duration)
         }
         return seg
       })
+      
+      // Add the spacer at the insertion point
+      const spacer = createSpacerSegment(insertionPoint, insertionPoint + duration)
       
       return sortSegmentsByTime([...updated, spacer])
     })

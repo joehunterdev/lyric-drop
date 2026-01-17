@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo } from 'react'
+import { useRef, useCallback, useMemo, useEffect } from 'react'
 import { Pause, ZoomIn, ZoomOut } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ interface TimelineProps {
   currentTime: number
   duration: number
   timelineState: TimelineState
+  isPlaying?: boolean
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onInsertSpacer: (atTime: number, duration?: number) => void
@@ -26,6 +27,7 @@ export function Timeline({
   currentTime,
   duration,
   timelineState,
+  isPlaying = false,
   onSelectSegment,
   onUpdateSegment,
   onInsertSpacer,
@@ -33,9 +35,17 @@ export function Timeline({
   onZoom,
 }: TimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   
   const pixelsPerSecond = timelineState.pixelsPerSecond * timelineState.zoom
-  const totalWidth = duration * pixelsPerSecond
+  
+  // Calculate the effective duration (max of video duration or last segment end)
+  const lastSegmentEnd = segments.length > 0 
+    ? Math.max(...segments.map(s => s.endTime)) 
+    : 0
+  const effectiveDuration = Math.max(duration, lastSegmentEnd)
+  
+  const totalWidth = effectiveDuration * pixelsPerSecond
   
   // Convert time to pixels
   const timeToPixels = useCallback((time: number) => {
@@ -56,20 +66,21 @@ export function Timeline({
     const x = e.clientX - rect.left + track.scrollLeft
     const time = pixelsToTime(x)
     
-    onSeek(Math.max(0, Math.min(time, duration)))
-  }, [pixelsToTime, duration, onSeek])
+    // Allow seeking up to the effective duration (including segments past video end)
+    onSeek(Math.max(0, Math.min(time, effectiveDuration)))
+  }, [pixelsToTime, effectiveDuration, onSeek])
   
-  // Generate time markers
+  // Generate time markers - extend to cover all segments
   const timeMarkers = useMemo(() => {
     const markers: number[] = []
     const interval = timelineState.zoom >= 2 ? 1 : timelineState.zoom >= 1 ? 5 : 10
     
-    for (let t = 0; t <= duration; t += interval) {
+    for (let t = 0; t <= effectiveDuration; t += interval) {
       markers.push(t)
     }
     
     return markers
-  }, [duration, timelineState.zoom])
+  }, [effectiveDuration, timelineState.zoom])
   
   const handleZoomIn = useCallback(() => {
     onZoom(timelineState.zoom + 0.5)
@@ -78,6 +89,31 @@ export function Timeline({
   const handleZoomOut = useCallback(() => {
     onZoom(timelineState.zoom - 0.5)
   }, [onZoom, timelineState.zoom])
+  
+  // Auto-scroll to keep playhead visible during playback
+  useEffect(() => {
+    if (!isPlaying || !scrollAreaRef.current) return
+    
+    const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollContainer) return
+    
+    const playheadPosition = timeToPixels(currentTime)
+    const containerWidth = scrollContainer.clientWidth
+    const scrollLeft = scrollContainer.scrollLeft
+    
+    // Keep playhead in the middle third of the visible area
+    const leftBound = scrollLeft + containerWidth * 0.25
+    const rightBound = scrollLeft + containerWidth * 0.75
+    
+    if (playheadPosition < leftBound || playheadPosition > rightBound) {
+      // Scroll to center the playhead
+      const targetScroll = playheadPosition - containerWidth / 2
+      scrollContainer.scrollTo({
+        left: Math.max(0, targetScroll),
+        behavior: 'smooth'
+      })
+    }
+  }, [currentTime, isPlaying, timeToPixels])
   
   if (duration === 0) {
     return (
@@ -117,7 +153,7 @@ export function Timeline({
         </div>
       </div>
       
-      <ScrollArea className="w-full">
+      <ScrollArea className="w-full" ref={scrollAreaRef}>
         <div 
           ref={trackRef}
           className="relative min-h-[120px] cursor-crosshair"
@@ -148,7 +184,7 @@ export function Timeline({
                 segment={segment}
                 isSelected={selectedSegmentId === segment.id}
                 pixelsPerSecond={pixelsPerSecond}
-                duration={duration}
+                duration={effectiveDuration}
                 onSelect={onSelectSegment}
                 onUpdate={onUpdateSegment}
               />

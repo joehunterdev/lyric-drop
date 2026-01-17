@@ -82,6 +82,7 @@ function AppContent() {
                 currentTime={videoState.currentTime}
                 duration={videoState.duration}
                 timelineState={timelineState}
+                isPlaying={videoState.isPlaying}
                 onSelectSegment={selectSegment}
                 onUpdateSegment={updateSegment}
                 onInsertSpacer={insertSpacer}
