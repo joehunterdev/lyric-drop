@@ -1,4 +1,4 @@
-import type { TextAlign, VerticalPosition } from './enums'
+import type { TextAlign, VerticalPosition, SegmentType } from './enums'
 
 /**
  * A single lyric segment with timing information
@@ -8,6 +8,7 @@ export interface LyricSegment {
   text: string
   startTime: number  // in seconds
   endTime: number    // in seconds
+  type: SegmentType  // 'lyric' or 'spacer'
 }
 
 /**

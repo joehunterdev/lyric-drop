@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react'
 import { cn } from '@/utils'
 import type { LyricSegment } from '@/types'
+import { SegmentType } from '@/types/enums'
 
 interface TimelineSegmentProps {
   segment: LyricSegment
@@ -83,12 +84,16 @@ export function TimelineSegment({
     }
   }, [isDragging, segment.id, onSelect])
   
+  const isSpacer = segment.type === SegmentType.SPACER
+  
   return (
     <div
       ref={segmentRef}
       className={cn(
         'absolute top-2 bottom-2 rounded cursor-pointer transition-colors',
-        'bg-timeline-segment hover:brightness-110',
+        isSpacer 
+          ? 'bg-muted/50 border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50'
+          : 'bg-timeline-segment hover:brightness-110',
         isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-timeline-bg',
         isDragging && 'opacity-80'
       )}
@@ -98,10 +103,19 @@ export function TimelineSegment({
       }}
       onClick={handleClick}
     >
-      {/* Segment Text */}
-      <div className="px-2 py-1 text-xs text-white truncate select-none h-full flex items-center">
-        {segment.text}
-      </div>
+      {/* Segment Text - only show for lyrics */}
+      {!isSpacer && (
+        <div className="px-2 py-1 text-xs text-white truncate select-none h-full flex items-center">
+          {segment.text}
+        </div>
+      )}
+      
+      {/* Spacer indicator */}
+      {isSpacer && (
+        <div className="px-2 py-1 text-xs text-muted-foreground truncate select-none h-full flex items-center justify-center">
+          ⏸
+        </div>
+      )}
       
       {/* Left Resize Handle - only show when selected */}
       {isSelected && (

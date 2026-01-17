@@ -9,6 +9,15 @@ export const SegmentStatus = {
 export type SegmentStatus = (typeof SegmentStatus)[keyof typeof SegmentStatus]
 
 /**
+ * Segment type - lyric or spacer (pause/instrumental)
+ */
+export const SegmentType = {
+  LYRIC: 'lyric',
+  SPACER: 'spacer',
+} as const
+export type SegmentType = (typeof SegmentType)[keyof typeof SegmentType]
+
+/**
  * Video playback state
  */
 export const PlaybackState = {

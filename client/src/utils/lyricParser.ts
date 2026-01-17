@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 
 import type { LyricSegment } from '@/types'
+import { SegmentType } from '@/types/enums'
 
 /**
  * Parse a block of lyrics text into lines
@@ -33,6 +34,7 @@ export function createSegmentsFromLines(
     text,
     startTime: startOffset + (index * segmentDuration),
     endTime: startOffset + ((index + 1) * segmentDuration),
+    type: SegmentType.LYRIC,
   }))
 }
 
@@ -45,6 +47,20 @@ export function createEmptySegment(startTime: number, endTime: number): LyricSeg
     text: '',
     startTime,
     endTime,
+    type: SegmentType.LYRIC,
+  }
+}
+
+/**
+ * Create a spacer segment (pause/instrumental break)
+ */
+export function createSpacerSegment(startTime: number, endTime: number): LyricSegment {
+  return {
+    id: uuidv4(),
+    text: '',
+    startTime,
+    endTime,
+    type: SegmentType.SPACER,
   }
 }
 
@@ -81,10 +97,14 @@ export function sortSegmentsByTime(segments: LyricSegment[]): LyricSegment[] {
 }
 
 /**
- * Find the segment active at a given time
+ * Find the segment active at a given time (only returns lyric segments, not spacers)
  */
 export function findActiveSegment(segments: LyricSegment[], time: number): LyricSegment | null {
-  return segments.find(seg => time >= seg.startTime && time < seg.endTime) ?? null
+  return segments.find(seg => 
+    seg.type === SegmentType.LYRIC && 
+    time >= seg.startTime && 
+    time < seg.endTime
+  ) ?? null
 }
 
 /**
@@ -104,6 +124,7 @@ export function splitSegmentAtTime(
     text: '',
     startTime: splitTime,
     endTime: segment.endTime,
+    type: segment.type,
   }
   
   return [firstHalf, secondHalf]
@@ -118,6 +139,7 @@ export function mergeSegments(first: LyricSegment, second: LyricSegment): LyricS
     text: `${first.text} ${second.text}`.trim(),
     startTime: Math.min(first.startTime, second.startTime),
     endTime: Math.max(first.endTime, second.endTime),
+    type: first.type,
   }
 }
 

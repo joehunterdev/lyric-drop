@@ -30,6 +30,7 @@ function AppContent() {
     selectSegment,
     updateSegment,
     removeSegment,
+    insertSpacer,
     importLyrics,
     setZoom,
   } = useTimeline(videoState.currentTime)
@@ -83,6 +84,7 @@ function AppContent() {
                 timelineState={timelineState}
                 onSelectSegment={selectSegment}
                 onUpdateSegment={updateSegment}
+                onInsertSpacer={insertSpacer}
                 onSeek={seek}
                 onZoom={setZoom}
               />
@@ -99,6 +101,7 @@ function AppContent() {
               onSelectSegment={selectSegment}
               onUpdateSegment={updateSegment}
               onRemoveSegment={removeSegment}
+              onInsertSpacer={insertSpacer}
             />
           </div>
         </div>

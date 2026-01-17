@@ -1,5 +1,5 @@
 import { useRef, useCallback, useMemo } from 'react'
-import { ZoomIn, ZoomOut } from 'lucide-react'
+import { Pause, ZoomIn, ZoomOut } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
@@ -15,6 +15,7 @@ interface TimelineProps {
   timelineState: TimelineState
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
+  onInsertSpacer: (atTime: number, duration?: number) => void
   onSeek: (time: number) => void
   onZoom: (zoom: number) => void
 }
@@ -27,6 +28,7 @@ export function Timeline({
   timelineState,
   onSelectSegment,
   onUpdateSegment,
+  onInsertSpacer,
   onSeek,
   onZoom,
 }: TimelineProps) {
@@ -87,9 +89,21 @@ export function Timeline({
   
   return (
     <div className="bg-timeline-bg rounded-lg overflow-hidden">
-      {/* Zoom Controls */}
+      {/* Controls */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-sm text-muted-foreground">Timeline</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Timeline</span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => onInsertSpacer(currentTime)}
+            disabled={segments.length === 0}
+            title="Insert space at playhead"
+          >
+            <Pause className="w-4 h-4 mr-1" />
+            Insert Space
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={timelineState.zoom <= 0.5}>
             <ZoomOut className="w-4 h-4" />

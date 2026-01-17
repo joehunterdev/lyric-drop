@@ -7,6 +7,7 @@ import {
   updateSegmentTiming,
   updateSegmentText,
   createSegmentsFromLines,
+  createSpacerSegment,
   parseLyricsToLines,
   logger,
 } from '@/utils'
@@ -23,6 +24,7 @@ interface UseTimelineReturn {
   updateSegment: (id: string, updates: Partial<LyricSegment>) => void
   selectSegment: (id: string | null) => void
   clearSegments: () => void
+  insertSpacer: (atTime: number, duration?: number) => void
   
   // Bulk operations
   importLyrics: (text: string, videoDuration: number) => void
@@ -155,6 +157,26 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     return findActiveSegment(segments, time)
   }, [segments])
   
+  // Insert a spacer at a given time, shifting all following segments
+  const insertSpacer = useCallback((atTime: number, duration: number = 2) => {
+    const spacer = createSpacerSegment(atTime, atTime + duration)
+    
+    setSegments(prev => {
+      // Find segments that start at or after the insertion point
+      const updated = prev.map(seg => {
+        if (seg.startTime >= atTime) {
+          // Shift this segment forward by spacer duration
+          return updateSegmentTiming(seg, seg.startTime + duration, seg.endTime + duration)
+        }
+        return seg
+      })
+      
+      return sortSegmentsByTime([...updated, spacer])
+    })
+    
+    logger.debug('Spacer inserted at:', atTime, 'duration:', duration)
+  }, [])
+  
   return {
     segments,
     selectedSegmentId,
@@ -165,6 +187,7 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     updateSegment,
     selectSegment,
     clearSegments,
+    insertSpacer,
     importLyrics,
     setZoom,
     setScrollPosition,

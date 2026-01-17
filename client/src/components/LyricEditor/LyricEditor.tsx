@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { FileText, Trash2, Plus } from 'lucide-react'
+import { FileText, Trash2, Plus, Pause } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatTime } from '@/utils'
 import type { LyricSegment } from '@/types'
+import { SegmentType } from '@/types/enums'
 
 interface LyricEditorProps {
   segments: LyricSegment[]
@@ -16,6 +17,7 @@ interface LyricEditorProps {
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onRemoveSegment: (id: string) => void
+  onInsertSpacer: (atTime: number, duration?: number) => void
 }
 
 export function LyricEditor({
@@ -26,6 +28,7 @@ export function LyricEditor({
   onSelectSegment,
   onUpdateSegment,
   onRemoveSegment,
+  onInsertSpacer,
 }: LyricEditorProps) {
   const [lyricsInput, setLyricsInput] = useState('')
   const [isImportMode, setIsImportMode] = useState(segments.length === 0)
@@ -88,58 +91,83 @@ export function LyricEditor({
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
-            Lyrics ({segments.length} segments)
+            Lyrics ({segments.filter(s => s.type === SegmentType.LYRIC).length} segments)
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsImportMode(true)}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Import
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                // Insert spacer at the start of selected segment or at 0
+                const selectedSeg = segments.find(s => s.id === selectedSegmentId)
+                onInsertSpacer(selectedSeg?.startTime ?? 0)
+              }}
+              title="Insert space before selected segment"
+            >
+              <Pause className="w-4 h-4 mr-1" />
+              Space
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsImportMode(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Import
+            </Button>
+          </div>
         </div>
       </CardHeader>
       
       <CardContent className="flex-1 overflow-hidden p-0">
         <ScrollArea className="h-full px-6">
           <div className="space-y-2 pb-4">
-            {segments.map((segment, index) => (
-              <div
-                key={segment.id}
-                className={cn(
-                  'p-3 rounded-lg border cursor-pointer transition-colors',
-                  'hover:border-primary/50',
-                  selectedSegmentId === segment.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-card'
-                )}
-                onClick={() => onSelectSegment(segment.id)}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-muted-foreground mb-1">
-                      {index + 1}. {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+            {segments.map((segment, index) => {
+              const isSpacer = segment.type === SegmentType.SPACER
+              
+              return (
+                <div
+                  key={segment.id}
+                  className={cn(
+                    'p-3 rounded-lg border cursor-pointer transition-colors',
+                    'hover:border-primary/50',
+                    selectedSegmentId === segment.id
+                      ? 'border-primary bg-primary/10'
+                      : isSpacer
+                        ? 'border-dashed border-muted-foreground/30 bg-muted/20'
+                        : 'border-border bg-card'
+                  )}
+                  onClick={() => onSelectSegment(segment.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {index + 1}. {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+                        {isSpacer && <span className="ml-2 text-muted-foreground">(Space)</span>}
+                      </div>
+                      {isSpacer ? (
+                        <p className="text-sm text-muted-foreground italic flex items-center gap-1">
+                          <Pause className="w-3 h-3" /> Pause / Instrumental
+                        </p>
+                      ) : selectedSegmentId === segment.id ? (
+                        <Textarea
+                          value={segment.text}
+                          onChange={(e) => onUpdateSegment(segment.id, { text: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                          className="min-h-[60px] text-sm"
+                          placeholder="Enter lyrics..."
+                        />
+                      ) : (
+                        <p className="text-sm truncate">
+                          {segment.text || <span className="text-muted-foreground italic">Empty</span>}
+                        </p>
+                      )}
                     </div>
-                    {selectedSegmentId === segment.id ? (
-                      <Textarea
-                        value={segment.text}
-                        onChange={(e) => onUpdateSegment(segment.id, { text: e.target.value })}
-                        onClick={(e) => e.stopPropagation()}
-                        className="min-h-[60px] text-sm"
-                        placeholder="Enter lyrics..."
-                      />
-                    ) : (
-                      <p className="text-sm truncate">
-                        {segment.text || <span className="text-muted-foreground italic">Empty</span>}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0 text-destructive hover:text-destructive"
+                    
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="flex-shrink-0 text-destructive hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation()
                       onRemoveSegment(segment.id)
@@ -149,7 +177,8 @@ export function LyricEditor({
                   </Button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </ScrollArea>
       </CardContent>
