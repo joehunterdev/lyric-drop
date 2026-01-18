@@ -156,12 +156,12 @@ export function Timeline({
       <ScrollArea className="w-full" ref={scrollAreaRef}>
         <div 
           ref={trackRef}
-          className="relative min-h-[120px] cursor-crosshair"
-          style={{ width: totalWidth + 100 }}
+          className="relative min-h-[120px] cursor-crosshair min-w-full"
+          style={{ width: totalWidth }}
           onClick={handleTrackClick}
         >
           {/* Time Markers */}
-          <div className="absolute top-0 left-0 right-0 h-6 border-b border-border/50">
+          <div className="absolute top-0 left-0 h-6 border-b border-border/50 min-w-full" style={{ width: totalWidth }}>
             {timeMarkers.map(time => (
               <div
                 key={time}
@@ -177,7 +177,7 @@ export function Timeline({
           </div>
           
           {/* Segments Track */}
-          <div className="absolute top-8 left-0 right-0 bottom-0 bg-timeline-track">
+          <div className="absolute top-8 left-0 bottom-0 bg-timeline-track min-w-full" style={{ width: totalWidth }}>
             {segments.map(segment => (
               <TimelineSegment
                 key={segment.id}

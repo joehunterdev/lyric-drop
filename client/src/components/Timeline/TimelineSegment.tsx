@@ -15,7 +15,7 @@ interface TimelineSegmentProps {
 type DragType = 'left' | 'right' | null
 
 const HANDLE_WIDTH = 8 // pixels
-const SEGMENT_MARGIN = 2 // pixels between segments
+const SEGMENT_GAP = 3 // pixels gap between segments
 
 export function TimelineSegment({
   segment,
@@ -91,6 +91,7 @@ export function TimelineSegment({
       ref={segmentRef}
       className={cn(
         'absolute top-2 bottom-2 rounded cursor-pointer transition-colors',
+        'border-l-2 border-l-timeline-bg', // Left border creates visual separation
         isSpacer 
           ? 'bg-muted/50 border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50'
           : 'bg-timeline-segment hover:brightness-110',
@@ -98,8 +99,8 @@ export function TimelineSegment({
         isDragging && 'opacity-80'
       )}
       style={{
-        left: left + SEGMENT_MARGIN,
-        width: Math.max(width - SEGMENT_MARGIN * 2, 20),
+        left: left + SEGMENT_GAP / 2,
+        width: Math.max(width - SEGMENT_GAP, 16),
       }}
       onClick={handleClick}
     >
