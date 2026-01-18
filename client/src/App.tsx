@@ -53,7 +53,7 @@ function AppContent() {
               alt="Joe Hunter" 
               className="h-8 w-auto"
             />
-            <h1 className="text-xl font-bold text-muted-foreground">
+            <h1 className="text-lg font-semibold text-primary leading-8">
               Lyric Drop
             </h1>
           </div>
@@ -140,7 +140,7 @@ function AppContent() {
       {/* Footer */}
       <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          <span className="text-primary font-semibold">Lyric Drop</span> v0.1.0 • Built by{' '}
+          <span className="text-primary font-semibold">Lyric Drop</span> v0.2.0 • Built by{' '}
           <a 
             href="https://joehunter.dev" 
             target="_blank" 
