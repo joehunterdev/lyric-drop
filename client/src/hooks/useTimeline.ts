@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
-import type { LyricSegment, TimelineState } from '@/types'
+import type { LyricSegment, LyricSection, TimelineState } from '@/types'
 import {
   sortSegmentsByTime,
   findActiveSegment,
@@ -14,7 +15,9 @@ import {
 
 interface UseTimelineReturn {
   segments: LyricSegment[]
+  lyricSections: LyricSection[]
   selectedSegmentId: string | null
+  selectedSectionId: string | null
   timelineState: TimelineState
   activeSegment: LyricSegment | null
   
@@ -25,6 +28,12 @@ interface UseTimelineReturn {
   selectSegment: (id: string | null) => void
   clearSegments: () => void
   insertSpacer: (atTime: number, duration?: number) => void
+  
+  // Lyric section operations
+  addLyricSection: (startTime?: number, endTime?: number) => void
+  removeLyricSection: (id: string) => void
+  updateLyricSection: (id: string, updates: Partial<LyricSection>) => void
+  selectLyricSection: (id: string | null) => void
   
   // Bulk operations
   importLyrics: (text: string, videoDuration: number, startTime?: number, endTime?: number) => void
@@ -45,7 +54,9 @@ const initialTimelineState: TimelineState = {
 
 export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   const [segments, setSegments] = useState<LyricSegment[]>([])
+  const [lyricSections, setLyricSections] = useState<LyricSection[]>([])
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [timelineState, setTimelineState] = useState<TimelineState>(initialTimelineState)
   
   // Compute active segment based on current time

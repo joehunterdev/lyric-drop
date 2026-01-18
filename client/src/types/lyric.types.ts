@@ -12,6 +12,17 @@ export interface LyricSegment {
 }
 
 /**
+ * A lyric section - container for a group of lyric segments
+ * Defines a time range where lyrics appear (e.g., a verse, chorus)
+ */
+export interface LyricSection {
+  id: string
+  startTime: number  // when this section starts
+  endTime: number    // when this section ends
+  color?: string     // optional custom color for visual distinction
+}
+
+/**
  * Video file state
  */
 export interface VideoState {
