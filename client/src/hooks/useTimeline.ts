@@ -251,41 +251,59 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     
     const newStartTime = updates.startTime ?? currentSection.startTime
     const newEndTime = updates.endTime ?? currentSection.endTime
-    const oldStartTime = currentSection.startTime
-    const oldEndTime = currentSection.endTime
     
-    // Check if bounds actually changed
-    const boundsChanged = newStartTime !== oldStartTime || newEndTime !== oldEndTime
+    const startChanged = newStartTime !== currentSection.startTime
+    const endChanged = newEndTime !== currentSection.endTime
     
-    if (boundsChanged) {
-      // Redistribute segments that fall within the section
+    if (startChanged || endChanged) {
+      // Redistribute segments that overlap with the section
       setSegments(prevSegments => {
-        // Find segments within the OLD section bounds
-        const segmentsInSection = prevSegments.filter(
-          seg => seg.startTime >= oldStartTime && seg.endTime <= oldEndTime
+        // Find segments that overlap with the CURRENT section bounds
+        const segmentsInSection = prevSegments.filter(seg => 
+          seg.startTime < currentSection.endTime && seg.endTime > currentSection.startTime
         )
         
         if (segmentsInSection.length === 0) return prevSegments
         
-        // Get the actual bounds of the segments (not the section)
+        // Get the actual bounds of the segments
         const actualFirstStart = Math.min(...segmentsInSection.map(s => s.startTime))
         const actualLastEnd = Math.max(...segmentsInSection.map(s => s.endTime))
         const actualSegmentsDuration = actualLastEnd - actualFirstStart
         
-        const newDuration = newEndTime - newStartTime
+        // Prevent division by zero
+        if (actualSegmentsDuration === 0) return prevSegments
         
-        // Scale factor to fit segments into new section duration
-        const scale = newDuration / actualSegmentsDuration
+        // Get IDs of segments in section for efficient lookup
+        const segmentIdsInSection = new Set(segmentsInSection.map(s => s.id))
         
-        // Redistribute each segment - snap to start and scale proportionally
+        // Calculate how to transform segments based on which edge moved
+        let newFirstStart: number
+        let scale: number
+        
+        if (startChanged && !endChanged) {
+          // Left edge moved: shift all segments to start at new position, scale to fit remaining space
+          newFirstStart = newStartTime
+          const newAvailableDuration = currentSection.endTime - newStartTime
+          scale = newAvailableDuration / actualSegmentsDuration
+        } else if (endChanged && !startChanged) {
+          // Right edge moved: keep start position, scale to fit new end
+          newFirstStart = actualFirstStart
+          const newAvailableDuration = newEndTime - actualFirstStart
+          scale = newAvailableDuration / actualSegmentsDuration
+        } else {
+          // Both edges moved: fit segments into new bounds
+          newFirstStart = newStartTime
+          const newDuration = newEndTime - newStartTime
+          scale = newDuration / actualSegmentsDuration
+        }
+        
+        // Redistribute each segment
         return prevSegments.map(seg => {
-          if (seg.startTime >= oldStartTime && seg.endTime <= oldEndTime) {
-            // Calculate position relative to the first segment (not section start)
+          if (segmentIdsInSection.has(seg.id)) {
             const relativeStart = seg.startTime - actualFirstStart
             const segmentDuration = seg.endTime - seg.startTime
             
-            // Map to new section: start at newStartTime and scale
-            const newSegStart = newStartTime + (relativeStart * scale)
+            const newSegStart = newFirstStart + (relativeStart * scale)
             const newSegEnd = newSegStart + (segmentDuration * scale)
             
             return {
