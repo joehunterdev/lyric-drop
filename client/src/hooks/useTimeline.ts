@@ -27,7 +27,7 @@ interface UseTimelineReturn {
   insertSpacer: (atTime: number, duration?: number) => void
   
   // Bulk operations
-  importLyrics: (text: string, videoDuration: number) => void
+  importLyrics: (text: string, videoDuration: number, startTime?: number, endTime?: number) => void
   
   // Timeline controls
   setZoom: (zoom: number) => void
@@ -126,17 +126,20 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     logger.debug('All segments cleared')
   }, [])
   
-  const importLyrics = useCallback((text: string, videoDuration: number) => {
+  const importLyrics = useCallback((text: string, videoDuration: number, startTime: number = 0, endTime?: number) => {
     const lines = parseLyricsToLines(text)
     if (lines.length === 0) {
       logger.warn('No lyrics to import')
       return
     }
     
-    const newSegments = createSegmentsFromLines(lines, videoDuration)
+    const effectiveEndTime = endTime ?? videoDuration
+    const endOffset = videoDuration - effectiveEndTime
+    
+    const newSegments = createSegmentsFromLines(lines, videoDuration, startTime, endOffset)
     setSegments(newSegments)
     setSelectedSegmentId(null)
-    logger.info(`Imported ${newSegments.length} lyric segments`)
+    logger.info(`Imported ${newSegments.length} lyric segments from ${startTime}s to ${effectiveEndTime}s`)
   }, [])
   
   const setZoom = useCallback((zoom: number) => {

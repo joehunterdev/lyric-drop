@@ -43,6 +43,9 @@ export function Timeline({
   const lastSegmentEnd = segments.length > 0 
     ? Math.max(...segments.map(s => s.endTime)) 
     : 0
+  const firstSegmentStart = segments.length > 0
+    ? Math.min(...segments.map(s => s.startTime))
+    : 0
   const effectiveDuration = Math.max(duration, lastSegmentEnd)
   
   const totalWidth = effectiveDuration * pixelsPerSecond
@@ -178,6 +181,23 @@ export function Timeline({
           
           {/* Segments Track */}
           <div className="absolute top-8 left-0 bottom-0 bg-timeline-track min-w-full" style={{ width: totalWidth }}>
+            {/* Pre-lyrics zone indicator (before first segment) */}
+            {firstSegmentStart > 0 && (
+              <div 
+                className="absolute top-0 bottom-0 bg-black/20 border-r border-dashed border-muted-foreground/40"
+                style={{ left: 0, width: timeToPixels(firstSegmentStart) }}
+              />
+            )}
+            
+            {/* Post-video zone indicator (after video duration) */}
+            {lastSegmentEnd > duration && (
+              <div 
+                className="absolute top-0 bottom-0 bg-orange-500/10 border-l border-dashed border-orange-500/40"
+                style={{ left: timeToPixels(duration), width: timeToPixels(lastSegmentEnd - duration) }}
+                title="Segments extend past video duration"
+              />
+            )}
+            
             {segments.map(segment => (
               <TimelineSegment
                 key={segment.id}

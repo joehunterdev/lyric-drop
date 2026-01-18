@@ -3,6 +3,8 @@ import { FileText, Trash2, Plus, Pause } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatTime } from '@/utils'
@@ -13,7 +15,8 @@ interface LyricEditorProps {
   segments: LyricSegment[]
   selectedSegmentId: string | null
   videoDuration: number
-  onImportLyrics: (text: string, duration: number) => void
+  currentTime: number
+  onImportLyrics: (text: string, duration: number, startTime?: number, endTime?: number) => void
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onRemoveSegment: (id: string) => void
@@ -24,6 +27,7 @@ export function LyricEditor({
   segments,
   selectedSegmentId,
   videoDuration,
+  currentTime,
   onImportLyrics,
   onSelectSegment,
   onUpdateSegment,
@@ -32,14 +36,21 @@ export function LyricEditor({
 }: LyricEditorProps) {
   const [lyricsInput, setLyricsInput] = useState('')
   const [isImportMode, setIsImportMode] = useState(segments.length === 0)
+  const [lyricStartTime, setLyricStartTime] = useState(0)
+  const [lyricEndTime, setLyricEndTime] = useState(videoDuration)
+  
+  // Update end time when video duration changes
+  if (lyricEndTime === 0 && videoDuration > 0) {
+    setLyricEndTime(videoDuration)
+  }
   
   const handleImport = useCallback(() => {
     if (lyricsInput.trim() && videoDuration > 0) {
-      onImportLyrics(lyricsInput, videoDuration)
+      onImportLyrics(lyricsInput, videoDuration, lyricStartTime, lyricEndTime)
       setLyricsInput('')
       setIsImportMode(false)
     }
-  }, [lyricsInput, videoDuration, onImportLyrics])
+  }, [lyricsInput, videoDuration, lyricStartTime, lyricEndTime, onImportLyrics])
   
   if (isImportMode || segments.length === 0) {
     return (
@@ -52,11 +63,67 @@ export function LyricEditor({
         </CardHeader>
         <CardContent className="space-y-4">
           <Textarea
-            placeholder="Paste your lyrics here...&#10;&#10;Each line will become a separate segment distributed evenly across the video duration."
+            placeholder="Paste your lyrics here...&#10;&#10;Each line will become a separate segment."
             value={lyricsInput}
             onChange={(e) => setLyricsInput(e.target.value)}
-            className="min-h-[200px] resize-none"
+            className="min-h-[150px] resize-none"
           />
+          
+          {/* Lyric Section Time Range */}
+          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+            <Label className="text-sm font-medium">Lyric Section (where lyrics appear)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Start Time (sec)</Label>
+                <div className="flex gap-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={lyricEndTime - 0.1}
+                    step={0.1}
+                    value={lyricStartTime}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLyricStartTime(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="h-8"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setLyricStartTime(currentTime)}
+                    title="Use current playhead position"
+                  >
+                    Now
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">End Time (sec)</Label>
+                <div className="flex gap-1">
+                  <Input
+                    type="number"
+                    min={lyricStartTime + 0.1}
+                    max={videoDuration}
+                    step={0.1}
+                    value={lyricEndTime || videoDuration}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLyricEndTime(Math.min(videoDuration, parseFloat(e.target.value) || videoDuration))}
+                    className="h-8"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setLyricEndTime(currentTime)}
+                    title="Use current playhead position"
+                  >
+                    Now
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Lyrics will be distributed evenly from {formatTime(lyricStartTime)} to {formatTime(lyricEndTime || videoDuration)}
+            </p>
+          </div>
           
           <div className="flex gap-2">
             <Button

@@ -98,6 +98,7 @@ function AppContent() {
               segments={segments}
               selectedSegmentId={selectedSegmentId}
               videoDuration={videoState.duration}
+              currentTime={videoState.currentTime}
               onImportLyrics={importLyrics}
               onSelectSegment={selectSegment}
               onUpdateSegment={updateSegment}

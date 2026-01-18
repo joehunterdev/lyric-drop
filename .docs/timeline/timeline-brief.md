@@ -14,8 +14,11 @@
 - Now we need to address the problem of spaces within the music
 - Also the initial start of segments on the timeline will be an issue
 
-## Fix 
-I think the easiest aproach would be able to define spaces or pauses within the timeline, where no lyrics can be present. this should be applicable in two places via the horizontal timeline line "Add Space" and potentially in the side bar too "Add Space"
- 
-how would you address these issues ?
- 
+Im finding the blocks are coming out more or less with the correct timing but i have a feeling that im now as a user going to have to adjust all blocks by 1/5th or so. How could we aproach this problem. Ultimartley the goal was always to help input on intial step by defining a start and endpoint allowing the lyrics to more or less fit to match the legnth requiring less adjustment how would you improve this ? 
+
+What i would suggest is that that the lyric sections rahter than this large ui input, to have a + New Lyric section in the sidebar to add a lyric section with a typical start end. but really think its fine to just adjust the legnth of this lyric section with in the horizontal timeline. The lyric section could be potentially in a group with a different color. Potentially we could levarage the vertical view space to adjust this lyric segment underneath no ? so theres no need adjust over the top of the purple seciotns i htink that would be complicated
+
+By defauult the lyric section can start at the begging
+lyric sectoins cannot be added within lyric sections+
+similar to pause insertt we need to add the same logic start and end once on section has been created
+
