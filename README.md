@@ -1,5 +1,7 @@
 # 🎤 Lyric Drop
 
+![Lyric Drop - Sync Lyrics to Video](client/public/assets/images/lyricdrop-example.png)
+
 > Add synchronized lyrics to short-form videos for TikTok, Instagram Reels, and YouTube Shorts — no video editing experience required.
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
