@@ -26,3 +26,14 @@ So i see a few issues so the lyric section needs to adjust the lyric segments to
 
 add pause then delete pause doesnt readjust the lyric segments
 when deleting a lyric segment these should automaticalyl become a pause block
+adding pause
+and yes lets add feedback when theres no space left for new secitons
+
+based on say current subtitles type architecture is it possible to add some meta data type layout like
+
+Verse:
+something
+Chorus:
+something
+
+to denomiate the sections ?

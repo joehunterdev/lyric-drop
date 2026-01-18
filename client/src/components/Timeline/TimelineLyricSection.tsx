@@ -6,7 +6,8 @@ interface TimelineLyricSectionProps {
   section: LyricSection
   isSelected: boolean
   pixelsPerSecond: number
-  duration: number
+  minTime: number  // Can't resize left edge before this (end of previous section or 0)
+  maxTime: number  // Can't resize right edge past this (start of next section or duration)
   onSelect: (id: string) => void
   onUpdate: (id: string, updates: Partial<LyricSection>) => void
 }
@@ -19,7 +20,8 @@ export function TimelineLyricSection({
   section,
   isSelected,
   pixelsPerSecond,
-  duration,
+  minTime,
+  maxTime,
   onSelect,
   onUpdate,
 }: TimelineLyricSectionProps) {
@@ -53,12 +55,12 @@ export function TimelineLyricSection({
       const deltaTime = deltaX / pixelsPerSecond
       
       if (type === 'left') {
-        // Adjust start time - minimum 0, can't go past end
-        const newStartTime = Math.max(0, Math.min(startStartTime + deltaTime, startEndTime - 1))
+        // Adjust start time - can't go before minTime, can't go past end - 1
+        const newStartTime = Math.max(minTime, Math.min(startStartTime + deltaTime, startEndTime - 1))
         onUpdate(section.id, { startTime: newStartTime })
       } else if (type === 'right') {
-        // Adjust end time - can't go before start, can't exceed video duration
-        const newEndTime = Math.max(startStartTime + 1, Math.min(startEndTime + deltaTime, duration))
+        // Adjust end time - can't go before start + 1, can't exceed maxTime
+        const newEndTime = Math.max(startStartTime + 1, Math.min(startEndTime + deltaTime, maxTime))
         onUpdate(section.id, { endTime: newEndTime })
       }
     }

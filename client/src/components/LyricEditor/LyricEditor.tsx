@@ -33,7 +33,6 @@ export function LyricEditor({
   selectedSegmentId,
   selectedSectionId,
   videoDuration,
-  currentTime,
   onImportLyrics,
   onAppendLyrics,
   onSelectSegment,
@@ -76,12 +75,12 @@ export function LyricEditor({
     
     // Only add if there's room (need at least 1 second)
     if (newStart >= videoDuration - 1) {
-      console.warn('No room for new section - video ends at', videoDuration, 'last section ends at', lastSectionEnd)
+      alert('No room for new section. Try resizing or deleting an existing section.')
       return
     }
     
-    // New section ends at video duration or +10s, whichever is smaller
-    const newEnd = Math.min(videoDuration, newStart + 10)
+    // New section fills all remaining space to video duration
+    const newEnd = videoDuration
     
     onAddLyricSection(newStart, newEnd)
     setIsAddingSection(true)
@@ -225,30 +224,16 @@ export function LyricEditor({
           <CardTitle className="text-lg">
             Lyrics ({segments.filter(s => s.type === SegmentType.LYRIC).length})
           </CardTitle>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleAddSection}
-              title="Add a new lyric section"
-              className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-500/10"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Section
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const selectedSeg = segments.find(s => s.id === selectedSegmentId)
-                onInsertSpacer(selectedSeg?.startTime ?? currentTime)
-              }}
-              title="Insert space at playhead"
-            >
-              <Pause className="w-4 h-4 mr-1" />
-              Space
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleAddSection}
+            title="Add a new lyric section"
+            className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-500/10"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Section
+          </Button>
         </div>
       </CardHeader>
       
@@ -389,18 +374,37 @@ export function LyricEditor({
                               </div>
                             </div>
                           ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full text-muted-foreground hover:text-foreground"
-                              onClick={() => {
-                                setImportingSectionId(section.id)
-                                setLyricsInput('')
-                              }}
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Add More Lyrics
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  setImportingSectionId(section.id)
+                                  setLyricsInput('')
+                                }}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add More Lyrics
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  // If a segment in this section is selected, insert after it
+                                  // Otherwise insert after the last segment
+                                  const selectedInSection = sectionSegments.find(s => s.id === selectedSegmentId)
+                                  const targetSegment = selectedInSection ?? sectionSegments[sectionSegments.length - 1]
+                                  if (targetSegment) {
+                                    onInsertSpacer(targetSegment.endTime)
+                                  }
+                                }}
+                              >
+                                <Pause className="w-3 h-3 mr-1" />
+                                Space
+                              </Button>
+                            </div>
                           )}
                         </div>
                       )}

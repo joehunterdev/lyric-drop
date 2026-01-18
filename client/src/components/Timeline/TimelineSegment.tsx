@@ -8,6 +8,8 @@ interface TimelineSegmentProps {
   isSelected: boolean
   pixelsPerSecond: number
   duration: number
+  minTime: number  // Section start (can't resize left edge before this)
+  maxTime: number  // Section end (can't resize right edge past this)
   onSelect: (id: string) => void
   onUpdate: (id: string, updates: Partial<LyricSegment>) => void
 }
@@ -22,6 +24,8 @@ export function TimelineSegment({
   isSelected,
   pixelsPerSecond,
   duration,
+  minTime,
+  maxTime,
   onSelect,
   onUpdate,
 }: TimelineSegmentProps) {
@@ -55,12 +59,12 @@ export function TimelineSegment({
       const deltaTime = deltaX / pixelsPerSecond
       
       if (type === 'left') {
-        // Adjust start time
-        const newStartTime = Math.max(0, Math.min(startStartTime + deltaTime, startEndTime - 0.1))
+        // Adjust start time - clamp to section bounds
+        const newStartTime = Math.max(minTime, Math.min(startStartTime + deltaTime, startEndTime - 0.1))
         onUpdate(segment.id, { startTime: newStartTime })
       } else if (type === 'right') {
-        // Adjust end time
-        const newEndTime = Math.max(startStartTime + 0.1, Math.min(startEndTime + deltaTime, duration))
+        // Adjust end time - clamp to section bounds
+        const newEndTime = Math.max(startStartTime + 0.1, Math.min(startEndTime + deltaTime, maxTime))
         onUpdate(segment.id, { endTime: newEndTime })
       }
     }

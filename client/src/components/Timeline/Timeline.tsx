@@ -127,6 +127,30 @@ export function Timeline({
     }
   }, [currentTime, isPlaying, timeToPixels])
   
+  // Scroll to selected segment when selection changes (from sidebar)
+  useEffect(() => {
+    if (!selectedSegmentId || !scrollAreaRef.current) return
+    
+    const selectedSegment = segments.find(s => s.id === selectedSegmentId)
+    if (!selectedSegment) return
+    
+    const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollContainer) return
+    
+    const segmentPosition = selectedSegment.startTime * pixelsPerSecond
+    const containerWidth = scrollContainer.clientWidth
+    const scrollLeft = scrollContainer.scrollLeft
+    
+    // Check if segment is outside visible area
+    if (segmentPosition < scrollLeft || segmentPosition > scrollLeft + containerWidth - 100) {
+      // Scroll to put segment near the left side with some padding
+      scrollContainer.scrollTo({
+        left: Math.max(0, segmentPosition - 50),
+        behavior: 'smooth'
+      })
+    }
+  }, [selectedSegmentId, segments, pixelsPerSecond])
+  
   if (duration === 0) {
     return (
       <div className="bg-timeline-bg rounded-lg p-4 text-center text-muted-foreground">
@@ -226,32 +250,53 @@ export function Timeline({
               />
             )}
             
-            {segments.map(segment => (
-              <TimelineSegment
-                key={segment.id}
-                segment={segment}
-                isSelected={selectedSegmentId === segment.id}
-                pixelsPerSecond={pixelsPerSecond}
-                duration={effectiveDuration}
-                onSelect={onSelectSegment}
-                onUpdate={onUpdateSegment}
-              />
-            ))}
+            {segments.map(segment => {
+              // Find the section this segment belongs to
+              const containingSection = lyricSections.find(section =>
+                segment.startTime >= section.startTime && segment.endTime <= section.endTime
+              )
+              // Clamp segment resize to its section bounds (or video bounds if orphan)
+              const segMinTime = containingSection ? containingSection.startTime : 0
+              const segMaxTime = containingSection ? containingSection.endTime : effectiveDuration
+              
+              return (
+                <TimelineSegment
+                  key={segment.id}
+                  segment={segment}
+                  isSelected={selectedSegmentId === segment.id}
+                  pixelsPerSecond={pixelsPerSecond}
+                  duration={effectiveDuration}
+                  minTime={segMinTime}
+                  maxTime={segMaxTime}
+                  onSelect={onSelectSegment}
+                  onUpdate={onUpdateSegment}
+                />
+              )
+            })}
           </div>
           
           {/* Lyric Sections Track */}
           <div className="absolute top-[72px] left-0 h-[40px] bg-timeline-track/50 border-t border-border/30 min-w-full" style={{ width: totalWidth }}>
-            {lyricSections.map(section => (
-              <TimelineLyricSection
-                key={section.id}
-                section={section}
-                isSelected={selectedSectionId === section.id}
-                pixelsPerSecond={pixelsPerSecond}
-                duration={duration}
-                onSelect={onSelectSection}
-                onUpdate={onUpdateSection}
-              />
-            ))}
+            {lyricSections.map((section, index) => {
+              // Calculate bounds based on adjacent sections
+              const prevSection = lyricSections[index - 1]
+              const nextSection = lyricSections[index + 1]
+              const minTime = prevSection ? prevSection.endTime : 0
+              const maxTime = nextSection ? nextSection.startTime : duration
+              
+              return (
+                <TimelineLyricSection
+                  key={section.id}
+                  section={section}
+                  isSelected={selectedSectionId === section.id}
+                  pixelsPerSecond={pixelsPerSecond}
+                  minTime={minTime}
+                  maxTime={maxTime}
+                  onSelect={onSelectSection}
+                  onUpdate={onUpdateSection}
+                />
+              )
+            })}
           </div>
           
           {/* Playhead */}

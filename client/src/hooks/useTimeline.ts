@@ -8,7 +8,6 @@ import {
   findActiveSegment,
   updateSegmentTiming,
   updateSegmentText,
-  createSegmentsFromLines,
   createSpacerSegment,
   parseLyricsToLines,
   logger,
@@ -72,12 +71,57 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   }, [])
   
   const removeSegment = useCallback((id: string) => {
-    setSegments(prev => prev.filter(seg => seg.id !== id))
+    // Get segment info before modifying state
+    const segmentToRemove = segments.find(seg => seg.id === id)
+    if (!segmentToRemove) return
+    
+    // Find which section this segment belongs to (if any)
+    const containingSection = lyricSections.find(section =>
+      segmentToRemove.startTime >= section.startTime && segmentToRemove.endTime <= section.endTime
+    )
+    
+    // If it's a spacer, remove it and close the gap (only within the same section)
+    if (segmentToRemove.type === SegmentType.SPACER) {
+      const spacerDuration = segmentToRemove.endTime - segmentToRemove.startTime
+      const spacerEnd = segmentToRemove.endTime
+      
+      // Remove the spacer and shift following segments backward (only within the same section)
+      setSegments(prev => prev
+        .filter(seg => seg.id !== id)
+        .map(seg => {
+          // Only shift segments that are after the spacer AND within the same section
+          if (seg.startTime >= spacerEnd) {
+            // Check if this segment is in the same section
+            const segInSameSection = containingSection
+              ? seg.startTime >= containingSection.startTime && seg.endTime <= containingSection.endTime
+              : !lyricSections.some(s => seg.startTime >= s.startTime && seg.endTime <= s.endTime)
+            
+            if (segInSameSection) {
+              return updateSegmentTiming(seg, seg.startTime - spacerDuration, seg.endTime - spacerDuration)
+            }
+          }
+          return seg
+        })
+      )
+    } else {
+      // If it's a lyric segment, replace it with a spacer (don't leave empty space)
+      setSegments(prev => prev.map(seg => {
+        if (seg.id === id) {
+          return {
+            ...seg,
+            type: SegmentType.SPACER,
+            text: '',
+          }
+        }
+        return seg
+      }))
+    }
+    
     if (selectedSegmentId === id) {
       setSelectedSegmentId(null)
     }
-    logger.debug('Segment removed:', id)
-  }, [selectedSegmentId])
+    logger.debug('Segment removed/converted:', id)
+  }, [segments, lyricSections, selectedSegmentId])
   
   const updateSegment = useCallback((id: string, updates: Partial<LyricSegment>) => {
     setSegments(prev => {
@@ -147,10 +191,26 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     }
     
     const effectiveEndTime = endTime ?? videoDuration
-    const endOffset = videoDuration - effectiveEndTime
+    const sectionDuration = effectiveEndTime - startTime
+    const segmentDuration = sectionDuration / lines.length
     
-    const newSegments = createSegmentsFromLines(lines, videoDuration, startTime, endOffset)
-    setSegments(newSegments)
+    // Create segments for this section
+    const newSegments: LyricSegment[] = lines.map((line, index) => ({
+      id: uuidv4(),
+      text: line,
+      startTime: startTime + (index * segmentDuration),
+      endTime: startTime + ((index + 1) * segmentDuration),
+      type: SegmentType.LYRIC,
+    }))
+    
+    // Merge with existing segments - keep segments outside this section's time range
+    setSegments(prev => {
+      const segmentsOutsideSection = prev.filter(seg => 
+        seg.endTime <= startTime || seg.startTime >= effectiveEndTime
+      )
+      return sortSegmentsByTime([...segmentsOutsideSection, ...newSegments])
+    })
+    
     setSelectedSegmentId(null)
     logger.info(`Imported ${newSegments.length} lyric segments from ${startTime}s to ${effectiveEndTime}s`)
   }, [])
@@ -256,10 +316,11 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     // shift sections that start after the insertion point
     setLyricSections(prev => {
       return prev.map(section => {
-        if (insertionPoint >= section.startTime && insertionPoint < section.endTime) {
-          // Insertion point is inside this section - extend the section
+        // Use <= for endTime to include insertion at the section's end boundary
+        if (insertionPoint >= section.startTime && insertionPoint <= section.endTime) {
+          // Insertion point is inside this section (or at its end) - extend the section
           return { ...section, endTime: section.endTime + duration }
-        } else if (section.startTime >= insertionPoint) {
+        } else if (section.startTime > insertionPoint) {
           // Section starts after insertion point - shift it forward
           return { 
             ...section, 
@@ -301,12 +362,25 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   }, [lyricSections])
   
   const removeLyricSection = useCallback((id: string) => {
+    // Find the section to get its time range
+    const sectionToRemove = lyricSections.find(s => s.id === id)
+    
+    if (sectionToRemove) {
+      // Remove all segments within this section's time range
+      setSegments(prev => prev.filter(seg => 
+        seg.endTime <= sectionToRemove.startTime || seg.startTime >= sectionToRemove.endTime
+      ))
+    }
+    
+    // Remove the section itself
     setLyricSections(prev => prev.filter(section => section.id !== id))
+    
     if (selectedSectionId === id) {
       setSelectedSectionId(null)
     }
-    logger.debug('Lyric section removed:', id)
-  }, [selectedSectionId])
+    setSelectedSegmentId(null)
+    logger.debug('Lyric section and its segments removed:', id)
+  }, [selectedSectionId, lyricSections])
   
   const updateLyricSection = useCallback((id: string, updates: Partial<LyricSection>) => {
     // Update section first, then redistribute segments based on new bounds
