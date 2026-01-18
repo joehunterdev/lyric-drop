@@ -131,17 +131,50 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
       
       const currentSegment = prev[segmentIndex]
       
+      // Find which section this segment belongs to
+      const containingSection = lyricSections.find(section =>
+        currentSegment.startTime >= section.startTime && currentSegment.endTime <= section.endTime
+      )
+      
       // Calculate the new timing
       const newStartTime = updates.startTime ?? currentSegment.startTime
-      const newEndTime = updates.endTime ?? currentSegment.endTime
+      let newEndTime = updates.endTime ?? currentSegment.endTime
       
-      // Calculate how much the end time shifted (for cascading to following segments)
-      const endTimeShift = newEndTime - currentSegment.endTime
+      // Calculate how much the end time would shift
+      let endTimeShift = newEndTime - currentSegment.endTime
+      
+      // If extending and in a section, clamp so last segment doesn't exceed section end
+      if (containingSection && endTimeShift > 0) {
+        // Find all segments in this section after the current one
+        const segmentsAfter = prev.filter((seg, idx) => 
+          idx > segmentIndex &&
+          seg.startTime >= containingSection.startTime && 
+          seg.endTime <= containingSection.endTime
+        )
+        
+        // Find the last segment in the section
+        const lastSegmentInSection = segmentsAfter.length > 0
+          ? segmentsAfter[segmentsAfter.length - 1]
+          : currentSegment
+        
+        // Calculate max allowed shift
+        const maxShift = containingSection.endTime - lastSegmentInSection.endTime
+        if (endTimeShift > maxShift) {
+          endTimeShift = Math.max(0, maxShift)
+          newEndTime = currentSegment.endTime + endTimeShift
+        }
+      }
+      
+      // If no actual shift, just update text if needed
+      if (endTimeShift === 0 && updates.startTime === undefined && updates.text !== undefined) {
+        return prev.map(seg => 
+          seg.id === id ? updateSegmentText(seg, updates.text!) : seg
+        )
+      }
       
       // Update all segments
       const updated = prev.map((seg, index) => {
         if (seg.id === id) {
-          // Update the target segment
           let newSegment = { ...seg }
           
           if (updates.startTime !== undefined || updates.endTime !== undefined) {
@@ -155,14 +188,17 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
           return newSegment
         }
         
-        // Shift all following segments by the same amount the end time changed
-        if (index > segmentIndex && endTimeShift !== 0) {
-          const shiftedStart = seg.startTime + endTimeShift
-          const shiftedEnd = seg.endTime + endTimeShift
+        // Only shift segments that are after AND in the same section
+        if (index > segmentIndex && endTimeShift !== 0 && containingSection) {
+          const isInSameSection = seg.startTime >= containingSection.startTime && seg.endTime <= containingSection.endTime
           
-          // Only shift if times remain valid (not negative)
-          if (shiftedStart >= 0) {
-            return updateSegmentTiming(seg, shiftedStart, shiftedEnd)
+          if (isInSameSection) {
+            const shiftedStart = seg.startTime + endTimeShift
+            const shiftedEnd = seg.endTime + endTimeShift
+            
+            if (shiftedStart >= 0) {
+              return updateSegmentTiming(seg, shiftedStart, shiftedEnd)
+            }
           }
         }
         
@@ -171,7 +207,7 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
       
       return sortSegmentsByTime(updated)
     })
-  }, [])
+  }, [lyricSections])
   
   const selectSegment = useCallback((id: string | null) => {
     setSelectedSegmentId(id)
