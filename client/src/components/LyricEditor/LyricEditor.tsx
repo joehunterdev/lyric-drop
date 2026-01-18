@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { FileText, Trash2, Plus, Pause } from 'lucide-react'
+import { FileText, Trash2, Plus, Pause, Layers } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatTime } from '@/utils'
-import type { LyricSegment } from '@/types'
+import type { LyricSegment, LyricSection } from '@/types'
 import { SegmentType } from '@/types/enums'
 
 interface LyricEditorProps {
   segments: LyricSegment[]
+  lyricSections: LyricSection[]
   selectedSegmentId: string | null
+  selectedSectionId: string | null
   videoDuration: number
   currentTime: number
   onImportLyrics: (text: string, duration: number, startTime?: number, endTime?: number) => void
@@ -21,11 +23,15 @@ interface LyricEditorProps {
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onRemoveSegment: (id: string) => void
   onInsertSpacer: (atTime: number, duration?: number) => void
+  onAddLyricSection: (startTime?: number, endTime?: number) => void
+  onRemoveLyricSection: (id: string) => void
 }
 
 export function LyricEditor({
   segments,
+  lyricSections,
   selectedSegmentId,
+  selectedSectionId,
   videoDuration,
   currentTime,
   onImportLyrics,
@@ -33,6 +39,8 @@ export function LyricEditor({
   onUpdateSegment,
   onRemoveSegment,
   onInsertSpacer,
+  onAddLyricSection,
+  onRemoveLyricSection,
 }: LyricEditorProps) {
   const [lyricsInput, setLyricsInput] = useState('')
   const [isImportMode, setIsImportMode] = useState(segments.length === 0)
@@ -164,6 +172,16 @@ export function LyricEditor({
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => onAddLyricSection(0, videoDuration)}
+              title="Add a new lyric section to group segments"
+              className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-500/10"
+            >
+              <Layers className="w-4 h-4 mr-1" />
+              Section
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 // Insert spacer at the start of selected segment or at 0
                 const selectedSeg = segments.find(s => s.id === selectedSegmentId)
@@ -184,6 +202,38 @@ export function LyricEditor({
             </Button>
           </div>
         </div>
+        
+        {/* Lyric Sections List */}
+        {lyricSections.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <Label className="text-xs text-muted-foreground">Lyric Sections</Label>
+            <div className="flex flex-wrap gap-1">
+              {lyricSections.map(section => (
+                <div
+                  key={section.id}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
+                    'bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-400',
+                    selectedSectionId === section.id && 'ring-1 ring-emerald-400'
+                  )}
+                >
+                  <span>{formatTime(section.startTime)} - {formatTime(section.endTime)}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 text-destructive hover:text-destructive p-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRemoveLyricSection(section.id)
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="flex-1 overflow-hidden p-0">

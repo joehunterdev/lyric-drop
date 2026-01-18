@@ -4,12 +4,15 @@ import { Pause, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
+import { TimelineLyricSection } from './TimelineLyricSection'
 import { formatTime } from '@/utils'
-import type { LyricSegment, TimelineState } from '@/types'
+import type { LyricSegment, LyricSection, TimelineState } from '@/types'
 
 interface TimelineProps {
   segments: LyricSegment[]
+  lyricSections: LyricSection[]
   selectedSegmentId: string | null
+  selectedSectionId: string | null
   currentTime: number
   duration: number
   timelineState: TimelineState
@@ -17,13 +20,17 @@ interface TimelineProps {
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onInsertSpacer: (atTime: number, duration?: number) => void
+  onSelectSection: (id: string | null) => void
+  onUpdateSection: (id: string, updates: Partial<LyricSection>) => void
   onSeek: (time: number) => void
   onZoom: (zoom: number) => void
 }
 
 export function Timeline({
   segments,
+  lyricSections,
   selectedSegmentId,
+  selectedSectionId,
   currentTime,
   duration,
   timelineState,
@@ -31,6 +38,8 @@ export function Timeline({
   onSelectSegment,
   onUpdateSegment,
   onInsertSpacer,
+  onSelectSection,
+  onUpdateSection,
   onSeek,
   onZoom,
 }: TimelineProps) {
@@ -159,7 +168,7 @@ export function Timeline({
       <ScrollArea className="w-full" ref={scrollAreaRef}>
         <div 
           ref={trackRef}
-          className="relative min-h-[120px] cursor-crosshair min-w-full"
+          className="relative min-h-[160px] cursor-crosshair min-w-full"
           style={{ width: totalWidth }}
           onClick={handleTrackClick}
         >
@@ -180,7 +189,7 @@ export function Timeline({
           </div>
           
           {/* Segments Track */}
-          <div className="absolute top-8 left-0 bottom-0 bg-timeline-track min-w-full" style={{ width: totalWidth }}>
+          <div className="absolute top-8 left-0 h-[56px] bg-timeline-track min-w-full" style={{ width: totalWidth }}>
             {/* Pre-lyrics zone indicator (before first segment) */}
             {firstSegmentStart > 0 && (
               <div 
@@ -207,6 +216,20 @@ export function Timeline({
                 duration={effectiveDuration}
                 onSelect={onSelectSegment}
                 onUpdate={onUpdateSegment}
+              />
+            ))}
+          </div>
+          
+          {/* Lyric Sections Track */}
+          <div className="absolute top-[72px] left-0 h-[40px] bg-timeline-track/50 border-t border-border/30 min-w-full" style={{ width: totalWidth }}>
+            {lyricSections.map(section => (
+              <TimelineLyricSection
+                key={section.id}
+                section={section}
+                isSelected={selectedSectionId === section.id}
+                pixelsPerSecond={pixelsPerSecond}
+                onSelect={onSelectSection}
+                onUpdate={onUpdateSection}
               />
             ))}
           </div>

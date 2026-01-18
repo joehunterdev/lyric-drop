@@ -211,9 +211,59 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     logger.debug('Spacer inserted at:', atTime, 'duration:', duration)
   }, [])
   
+  // Lyric Section operations
+  const addLyricSection = useCallback((startTime: number = 0, endTime: number = 30) => {
+    // Check if new section would overlap with existing sections
+    const wouldOverlap = lyricSections.some(section => 
+      (startTime >= section.startTime && startTime < section.endTime) ||
+      (endTime > section.startTime && endTime <= section.endTime) ||
+      (startTime <= section.startTime && endTime >= section.endTime)
+    )
+    
+    if (wouldOverlap) {
+      logger.warn('Cannot add lyric section - would overlap with existing section')
+      return
+    }
+    
+    const newSection: LyricSection = {
+      id: uuidv4(),
+      startTime,
+      endTime,
+    }
+    
+    setLyricSections(prev => [...prev, newSection].sort((a, b) => a.startTime - b.startTime))
+    setSelectedSectionId(newSection.id)
+    logger.info('Lyric section added:', newSection.id)
+  }, [lyricSections])
+  
+  const removeLyricSection = useCallback((id: string) => {
+    setLyricSections(prev => prev.filter(section => section.id !== id))
+    if (selectedSectionId === id) {
+      setSelectedSectionId(null)
+    }
+    logger.debug('Lyric section removed:', id)
+  }, [selectedSectionId])
+  
+  const updateLyricSection = useCallback((id: string, updates: Partial<LyricSection>) => {
+    setLyricSections(prev => prev.map(section => {
+      if (section.id !== id) return section
+      return { ...section, ...updates }
+    }).sort((a, b) => a.startTime - b.startTime))
+  }, [])
+  
+  const selectLyricSection = useCallback((id: string | null) => {
+    setSelectedSectionId(id)
+    // Deselect segment when selecting a section
+    if (id !== null) {
+      setSelectedSegmentId(null)
+    }
+  }, [])
+  
   return {
     segments,
+    lyricSections,
     selectedSegmentId,
+    selectedSectionId,
     timelineState,
     activeSegment,
     addSegment,
@@ -222,6 +272,10 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     selectSegment,
     clearSegments,
     insertSpacer,
+    addLyricSection,
+    removeLyricSection,
+    updateLyricSection,
+    selectLyricSection,
     importLyrics,
     setZoom,
     setScrollPosition,

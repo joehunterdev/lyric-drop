@@ -24,7 +24,9 @@ function AppContent() {
   
   const {
     segments,
+    lyricSections,
     selectedSegmentId,
+    selectedSectionId,
     timelineState,
     activeSegment,
     selectSegment,
@@ -33,6 +35,10 @@ function AppContent() {
     insertSpacer,
     importLyrics,
     setZoom,
+    addLyricSection,
+    removeLyricSection,
+    updateLyricSection,
+    selectLyricSection,
   } = useTimeline(videoState.currentTime)
 
   return (
@@ -78,7 +84,9 @@ function AppContent() {
             <div className="mt-6">
               <Timeline
                 segments={segments}
+                lyricSections={lyricSections}
                 selectedSegmentId={selectedSegmentId}
+                selectedSectionId={selectedSectionId}
                 currentTime={videoState.currentTime}
                 duration={videoState.duration}
                 timelineState={timelineState}
@@ -86,6 +94,8 @@ function AppContent() {
                 onSelectSegment={selectSegment}
                 onUpdateSegment={updateSegment}
                 onInsertSpacer={insertSpacer}
+                onSelectSection={selectLyricSection}
+                onUpdateSection={updateLyricSection}
                 onSeek={seek}
                 onZoom={setZoom}
               />
@@ -96,7 +106,9 @@ function AppContent() {
           <div className="lg:col-span-1 min-h-[400px]">
             <LyricEditor
               segments={segments}
+              lyricSections={lyricSections}
               selectedSegmentId={selectedSegmentId}
+              selectedSectionId={selectedSectionId}
               videoDuration={videoState.duration}
               currentTime={videoState.currentTime}
               onImportLyrics={importLyrics}
@@ -104,6 +116,8 @@ function AppContent() {
               onUpdateSegment={updateSegment}
               onRemoveSegment={removeSegment}
               onInsertSpacer={insertSpacer}
+              onAddLyricSection={addLyricSection}
+              onRemoveLyricSection={removeLyricSection}
             />
           </div>
         </div>
