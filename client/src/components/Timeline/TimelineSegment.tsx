@@ -91,7 +91,7 @@ export function TimelineSegment({
       ref={segmentRef}
       className={cn(
         'absolute top-2 bottom-2 rounded cursor-pointer transition-colors',
-        'border-l-2 border-l-timeline-bg', // Left border creates visual separation
+        'border-r border-r-black/40', // Right border creates visual separation between segments
         isSpacer 
           ? 'bg-muted/50 border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50'
           : 'bg-timeline-segment hover:brightness-110',
