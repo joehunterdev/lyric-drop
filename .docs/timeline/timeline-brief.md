@@ -23,3 +23,6 @@ lyric sectoins cannot be added within lyric sections+
 similar to pause insertt we need to add the same logic start and end once on section has been created
 
 So i see a few issues so the lyric section needs to adjust the lyric segments to fit in them right ? so i would like to see them adjust (the purple ones) realtime. One ui improemnt also is when u select the green section that it also covers or highlights the above timeline with an overlay or horizonatal indicators so its clear were adjusting a section
+
+add pause then delete pause doesnt readjust the lyric segments
+when deleting a lyric segment these should automaticalyl become a pause block

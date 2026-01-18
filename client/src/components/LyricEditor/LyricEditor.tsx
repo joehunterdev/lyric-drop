@@ -1,10 +1,8 @@
-import { useState, useCallback } from 'react'
-import { FileText, Trash2, Plus, Pause, Layers } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { FileText, Trash2, Plus, Pause, Layers, ChevronDown, ChevronRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatTime } from '@/utils'
@@ -19,12 +17,14 @@ interface LyricEditorProps {
   videoDuration: number
   currentTime: number
   onImportLyrics: (text: string, duration: number, startTime?: number, endTime?: number) => void
+  onAppendLyrics: (text: string, sectionStart: number, sectionEnd: number, existingSegmentIds: string[]) => void
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onRemoveSegment: (id: string) => void
   onInsertSpacer: (atTime: number, duration?: number) => void
   onAddLyricSection: (startTime?: number, endTime?: number) => void
   onRemoveLyricSection: (id: string) => void
+  onSelectSection: (id: string | null) => void
 }
 
 export function LyricEditor({
@@ -35,125 +35,182 @@ export function LyricEditor({
   videoDuration,
   currentTime,
   onImportLyrics,
+  onAppendLyrics,
   onSelectSegment,
   onUpdateSegment,
   onRemoveSegment,
   onInsertSpacer,
   onAddLyricSection,
   onRemoveLyricSection,
+  onSelectSection,
 }: LyricEditorProps) {
   const [lyricsInput, setLyricsInput] = useState('')
-  const [isImportMode, setIsImportMode] = useState(segments.length === 0)
-  const [lyricStartTime, setLyricStartTime] = useState(0)
-  const [lyricEndTime, setLyricEndTime] = useState(videoDuration)
+  const [isAddingSection, setIsAddingSection] = useState(false)
+  const [importingSectionId, setImportingSectionId] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   
-  // Update end time when video duration changes
-  if (lyricEndTime === 0 && videoDuration > 0) {
-    setLyricEndTime(videoDuration)
+  // Get segments grouped by which section they belong to
+  const getSegmentsInSection = useCallback((section: LyricSection) => {
+    return segments.filter(seg => 
+      seg.startTime >= section.startTime && seg.endTime <= section.endTime
+    )
+  }, [segments])
+  
+  // Get segments not in any section
+  const orphanSegments = useMemo(() => {
+    return segments.filter(seg => {
+      return !lyricSections.some(section => 
+        seg.startTime >= section.startTime && seg.endTime <= section.endTime
+      )
+    })
+  }, [segments, lyricSections])
+  
+  const handleAddSection = useCallback(() => {
+    // Find the end of the last section, or start at 0 if no sections exist
+    const lastSectionEnd = lyricSections.length > 0
+      ? Math.max(...lyricSections.map(s => s.endTime))
+      : 0
+    
+    // New section starts after last section
+    const newStart = lastSectionEnd
+    
+    // Only add if there's room (need at least 1 second)
+    if (newStart >= videoDuration - 1) {
+      console.warn('No room for new section - video ends at', videoDuration, 'last section ends at', lastSectionEnd)
+      return
+    }
+    
+    // New section ends at video duration or +10s, whichever is smaller
+    const newEnd = Math.min(videoDuration, newStart + 10)
+    
+    onAddLyricSection(newStart, newEnd)
+    setIsAddingSection(true)
+  }, [onAddLyricSection, videoDuration, lyricSections])
+  
+  const handleImportToSection = useCallback((sectionId: string) => {
+    if (!lyricsInput.trim() || videoDuration === 0) return
+    
+    const section = lyricSections.find(s => s.id === sectionId)
+    if (!section) return
+    
+    // Check if section already has segments
+    const existingSegments = segments.filter(seg => 
+      seg.startTime >= section.startTime && seg.endTime <= section.endTime
+    )
+    
+    if (existingSegments.length > 0) {
+      // Append to existing - redistribute all segments within section
+      const existingIds = existingSegments.map(seg => seg.id)
+      onAppendLyrics(lyricsInput, section.startTime, section.endTime, existingIds)
+    } else {
+      // Fresh import for empty section
+      onImportLyrics(lyricsInput, videoDuration, section.startTime, section.endTime)
+    }
+    
+    setLyricsInput('')
+    setIsAddingSection(false)
+    setImportingSectionId(null)
+    // Expand the section to show imported lyrics
+    setExpandedSections(prev => new Set([...prev, sectionId]))
+  }, [lyricsInput, videoDuration, lyricSections, segments, onImportLyrics, onAppendLyrics])
+  
+  const toggleSectionExpanded = useCallback((sectionId: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(sectionId)) {
+        next.delete(sectionId)
+      } else {
+        next.add(sectionId)
+      }
+      return next
+    })
+  }, [])
+
+  const renderSegment = (segment: LyricSegment, index: number) => {
+    const isSpacer = segment.type === SegmentType.SPACER
+    
+    return (
+      <div
+        key={segment.id}
+        className={cn(
+          'p-2 rounded-md border cursor-pointer transition-colors',
+          'hover:border-primary/50',
+          selectedSegmentId === segment.id
+            ? 'border-primary bg-primary/10'
+            : isSpacer
+              ? 'border-dashed border-muted-foreground/30 bg-muted/20'
+              : 'border-border bg-card/50'
+        )}
+        onClick={() => onSelectSegment(segment.id)}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] text-muted-foreground mb-0.5">
+              {index + 1}. {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+              {isSpacer && <span className="ml-1">(Space)</span>}
+            </div>
+            {isSpacer ? (
+              <p className="text-xs text-muted-foreground italic flex items-center gap-1">
+                <Pause className="w-3 h-3" /> Pause
+              </p>
+            ) : selectedSegmentId === segment.id ? (
+              <Textarea
+                value={segment.text}
+                onChange={(e) => onUpdateSegment(segment.id, { text: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                className="min-h-[50px] text-sm"
+                placeholder="Enter lyrics..."
+              />
+            ) : (
+              <p className="text-sm truncate">
+                {segment.text || <span className="text-muted-foreground italic">Empty</span>}
+              </p>
+            )}
+          </div>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="flex-shrink-0 h-6 w-6 text-destructive hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemoveSegment(segment.id)
+            }}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+    )
   }
   
-  const handleImport = useCallback(() => {
-    if (lyricsInput.trim() && videoDuration > 0) {
-      onImportLyrics(lyricsInput, videoDuration, lyricStartTime, lyricEndTime)
-      setLyricsInput('')
-      setIsImportMode(false)
-    }
-  }, [lyricsInput, videoDuration, lyricStartTime, lyricEndTime, onImportLyrics])
-  
-  if (isImportMode || segments.length === 0) {
+  // No sections yet - show "Add Lyric Section" prompt
+  if (lyricSections.length === 0 && segments.length === 0) {
     return (
       <Card className="h-full">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            Import Lyrics
+            Lyrics
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Textarea
-            placeholder="Paste your lyrics here...&#10;&#10;Each line will become a separate segment."
-            value={lyricsInput}
-            onChange={(e) => setLyricsInput(e.target.value)}
-            className="min-h-[150px] resize-none"
-          />
+          <p className="text-sm text-muted-foreground">
+            Add a lyric section to get started. Sections define where lyrics appear in your video.
+          </p>
           
-          {/* Lyric Section Time Range */}
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
-            <Label className="text-sm font-medium">Lyric Section (where lyrics appear)</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Start Time (sec)</Label>
-                <div className="flex gap-1">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={lyricEndTime - 0.1}
-                    step={0.1}
-                    value={lyricStartTime}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLyricStartTime(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="h-8"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => setLyricStartTime(currentTime)}
-                    title="Use current playhead position"
-                  >
-                    Now
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">End Time (sec)</Label>
-                <div className="flex gap-1">
-                  <Input
-                    type="number"
-                    min={lyricStartTime + 0.1}
-                    max={videoDuration}
-                    step={0.1}
-                    value={lyricEndTime || videoDuration}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLyricEndTime(Math.min(videoDuration, parseFloat(e.target.value) || videoDuration))}
-                    className="h-8"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => setLyricEndTime(currentTime)}
-                    title="Use current playhead position"
-                  >
-                    Now
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Lyrics will be distributed evenly from {formatTime(lyricStartTime)} to {formatTime(lyricEndTime || videoDuration)}
-            </p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button
-              onClick={handleImport}
-              disabled={!lyricsInput.trim() || videoDuration === 0}
-              className="flex-1"
-            >
-              Import & Distribute
-            </Button>
-            {segments.length > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => setIsImportMode(false)}
-              >
-                Cancel
-              </Button>
-            )}
-          </div>
+          <Button
+            onClick={handleAddSection}
+            disabled={videoDuration === 0}
+            className="w-full bg-emerald-600 hover:bg-emerald-500"
+          >
+            <Layers className="w-4 h-4 mr-2" />
+            Add Lyric Section
+          </Button>
           
           {videoDuration === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Upload a video first to import lyrics.
+            <p className="text-sm text-muted-foreground text-center">
+              Upload a video first to add lyrics.
             </p>
           )}
         </CardContent>
@@ -163,139 +220,207 @@ export function LyricEditor({
   
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="pb-3 flex-shrink-0">
+      <CardHeader className="pb-2 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
-            Lyrics ({segments.filter(s => s.type === SegmentType.LYRIC).length} segments)
+            Lyrics ({segments.filter(s => s.type === SegmentType.LYRIC).length})
           </CardTitle>
           <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onAddLyricSection(0, videoDuration)}
-              title="Add a new lyric section to group segments"
+              onClick={handleAddSection}
+              title="Add a new lyric section"
               className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-500/10"
             >
-              <Layers className="w-4 h-4 mr-1" />
+              <Plus className="w-4 h-4 mr-1" />
               Section
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                // Insert spacer at the start of selected segment or at 0
                 const selectedSeg = segments.find(s => s.id === selectedSegmentId)
-                onInsertSpacer(selectedSeg?.startTime ?? 0)
+                onInsertSpacer(selectedSeg?.startTime ?? currentTime)
               }}
-              title="Insert space before selected segment"
+              title="Insert space at playhead"
             >
               <Pause className="w-4 h-4 mr-1" />
               Space
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsImportMode(true)}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Import
-            </Button>
           </div>
         </div>
-        
-        {/* Lyric Sections List */}
-        {lyricSections.length > 0 && (
-          <div className="mt-3 space-y-1">
-            <Label className="text-xs text-muted-foreground">Lyric Sections</Label>
-            <div className="flex flex-wrap gap-1">
-              {lyricSections.map(section => (
-                <div
-                  key={section.id}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
-                    'bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-400',
-                    selectedSectionId === section.id && 'ring-1 ring-emerald-400'
-                  )}
-                >
-                  <span>{formatTime(section.startTime)} - {formatTime(section.endTime)}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 text-destructive hover:text-destructive p-0"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemoveLyricSection(section.id)
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </CardHeader>
       
       <CardContent className="flex-1 overflow-hidden p-0">
-        <ScrollArea className="h-full px-6">
-          <div className="space-y-2 pb-4">
-            {segments.map((segment, index) => {
-              const isSpacer = segment.type === SegmentType.SPACER
+        <ScrollArea className="h-full px-4">
+          <div className="space-y-3 pb-4">
+            {/* Lyric Sections with nested segments */}
+            {lyricSections.map(section => {
+              const sectionSegments = getSegmentsInSection(section)
+              const isExpanded = expandedSections.has(section.id)
+              const isSelected = selectedSectionId === section.id
+              const isNewSection = isAddingSection && section === lyricSections[lyricSections.length - 1]
               
               return (
                 <div
-                  key={segment.id}
+                  key={section.id}
                   className={cn(
-                    'p-3 rounded-lg border cursor-pointer transition-colors',
-                    'hover:border-primary/50',
-                    selectedSegmentId === segment.id
-                      ? 'border-primary bg-primary/10'
-                      : isSpacer
-                        ? 'border-dashed border-muted-foreground/30 bg-muted/20'
-                        : 'border-border bg-card'
+                    'rounded-lg border-2 overflow-hidden transition-colors',
+                    'border-emerald-500/30 bg-emerald-500/5',
+                    isSelected && 'border-emerald-400 ring-1 ring-emerald-400'
                   )}
-                  onClick={() => onSelectSegment(segment.id)}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-muted-foreground mb-1">
-                        {index + 1}. {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
-                        {isSpacer && <span className="ml-2 text-muted-foreground">(Space)</span>}
-                      </div>
-                      {isSpacer ? (
-                        <p className="text-sm text-muted-foreground italic flex items-center gap-1">
-                          <Pause className="w-3 h-3" /> Pause / Instrumental
-                        </p>
-                      ) : selectedSegmentId === segment.id ? (
-                        <Textarea
-                          value={segment.text}
-                          onChange={(e) => onUpdateSegment(segment.id, { text: e.target.value })}
-                          onClick={(e) => e.stopPropagation()}
-                          className="min-h-[60px] text-sm"
-                          placeholder="Enter lyrics..."
-                        />
+                  {/* Section Header */}
+                  <div
+                    className={cn(
+                      'flex items-center justify-between px-3 py-2 cursor-pointer',
+                      'bg-emerald-600/20 hover:bg-emerald-600/30 transition-colors'
+                    )}
+                    onClick={() => {
+                      onSelectSection(section.id)
+                      toggleSectionExpanded(section.id)
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExpanded || isNewSection ? (
+                        <ChevronDown className="w-4 h-4 text-emerald-400" />
                       ) : (
-                        <p className="text-sm truncate">
-                          {segment.text || <span className="text-muted-foreground italic">Empty</span>}
-                        </p>
+                        <ChevronRight className="w-4 h-4 text-emerald-400" />
                       )}
+                      <Layers className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium text-emerald-200">
+                        {formatTime(section.startTime)} - {formatTime(section.endTime)}
+                      </span>
+                      <span className="text-xs text-emerald-400/70">
+                        ({sectionSegments.length} segments)
+                      </span>
                     </div>
-                    
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="flex-shrink-0 text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemoveSegment(segment.id)
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                      className="h-6 w-6 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemoveLyricSection(section.id)
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  
+                  {/* Section Content - Import or Segments */}
+                  {(isExpanded || isNewSection) && (
+                    <div className="p-3 space-y-2">
+                      {/* Show import textarea for new sections or empty sections (at top) */}
+                      {(isNewSection || sectionSegments.length === 0) && (
+                        <div className="space-y-2">
+                          <Textarea
+                            placeholder="Paste lyrics here... Each line becomes a segment."
+                            value={lyricsInput}
+                            onChange={(e) => setLyricsInput(e.target.value)}
+                            className="min-h-[100px] resize-none text-sm"
+                            autoFocus={isNewSection}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleImportToSection(section.id)}
+                              disabled={!lyricsInput.trim()}
+                              className="flex-1"
+                            >
+                              Import Lyrics
+                            </Button>
+                            {isNewSection && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setIsAddingSection(false)
+                                  setImportingSectionId(null)
+                                  setLyricsInput('')
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Segments list */}
+                      {sectionSegments.length > 0 && (
+                        <div className="space-y-1">
+                          {sectionSegments.map((seg, idx) => renderSegment(seg, idx))}
+                        </div>
+                      )}
+                      
+                      {/* Add more lyrics - show at bottom when section has segments */}
+                      {sectionSegments.length > 0 && (
+                        <div className="pt-2 border-t border-border/30">
+                          {importingSectionId === section.id ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                placeholder="Paste additional lyrics here..."
+                                value={lyricsInput}
+                                onChange={(e) => setLyricsInput(e.target.value)}
+                                className="min-h-[80px] resize-none text-sm"
+                                autoFocus
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleImportToSection(section.id)}
+                                  disabled={!lyricsInput.trim()}
+                                  className="flex-1"
+                                >
+                                  Add Lyrics
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setImportingSectionId(null)
+                                    setLyricsInput('')
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setImportingSectionId(section.id)
+                                setLyricsInput('')
+                              }}
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Add More Lyrics
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
               )
             })}
+            
+            {/* Orphan segments (not in any section) */}
+            {orphanSegments.length > 0 && (
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                <div className="text-xs text-muted-foreground mb-2">
+                  Segments outside sections
+                </div>
+                <div className="space-y-1">
+                  {orphanSegments.map((seg, idx) => renderSegment(seg, idx))}
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>

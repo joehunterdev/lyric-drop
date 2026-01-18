@@ -34,6 +34,7 @@ function AppContent() {
     removeSegment,
     insertSpacer,
     importLyrics,
+    appendLyrics,
     setZoom,
     addLyricSection,
     removeLyricSection,
@@ -112,12 +113,14 @@ function AppContent() {
               videoDuration={videoState.duration}
               currentTime={videoState.currentTime}
               onImportLyrics={importLyrics}
+              onAppendLyrics={appendLyrics}
               onSelectSegment={selectSegment}
               onUpdateSegment={updateSegment}
               onRemoveSegment={removeSegment}
               onInsertSpacer={insertSpacer}
               onAddLyricSection={addLyricSection}
               onRemoveLyricSection={removeLyricSection}
+              onSelectSection={selectLyricSection}
             />
           </div>
         </div>

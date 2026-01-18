@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { LyricSegment, LyricSection, TimelineState } from '@/types'
+import { SegmentType } from '@/types/enums'
 import {
   sortSegmentsByTime,
   findActiveSegment,
@@ -37,6 +38,7 @@ interface UseTimelineReturn {
   
   // Bulk operations
   importLyrics: (text: string, videoDuration: number, startTime?: number, endTime?: number) => void
+  appendLyrics: (text: string, sectionStart: number, sectionEnd: number, existingSegmentIds: string[]) => void
   
   // Timeline controls
   setZoom: (zoom: number) => void
@@ -153,6 +155,47 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     logger.info(`Imported ${newSegments.length} lyric segments from ${startTime}s to ${effectiveEndTime}s`)
   }, [])
   
+  // Append lyrics to existing segments (redistributes all segments in section)
+  const appendLyrics = useCallback((text: string, sectionStart: number, sectionEnd: number, existingSegmentIds: string[]) => {
+    const newLines = parseLyricsToLines(text)
+    if (newLines.length === 0) {
+      logger.warn('No lyrics to append')
+      return
+    }
+    
+    setSegments(prev => {
+      // Get existing segments in this section (preserve their text)
+      const existingSegments = prev.filter(seg => existingSegmentIds.includes(seg.id))
+      const otherSegments = prev.filter(seg => !existingSegmentIds.includes(seg.id))
+      
+      // Combine existing texts with new lines
+      const allTexts = [
+        ...existingSegments.map(seg => seg.text),
+        ...newLines
+      ]
+      
+      // Calculate new timing for all segments
+      const sectionDuration = sectionEnd - sectionStart
+      const segmentDuration = sectionDuration / allTexts.length
+      
+      // Create redistributed segments
+      const redistributedSegments: LyricSegment[] = allTexts.map((text, index) => {
+        const existingSeg = existingSegments[index]
+        return {
+          id: existingSeg?.id ?? uuidv4(),
+          text,
+          startTime: sectionStart + (index * segmentDuration),
+          endTime: sectionStart + ((index + 1) * segmentDuration),
+          type: existingSeg?.type ?? SegmentType.LYRIC,
+        }
+      })
+      
+      logger.info(`Redistributed ${redistributedSegments.length} segments (${existingSegments.length} existing + ${newLines.length} new) in section`)
+      
+      return sortSegmentsByTime([...otherSegments, ...redistributedSegments])
+    })
+  }, [])
+  
   const setZoom = useCallback((zoom: number) => {
     setTimelineState(prev => ({
       ...prev,
@@ -174,26 +217,27 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   // Insert a spacer at a given time, shifting all following segments
   // If cursor is over a segment, snap to left or right edge based on position
   const insertSpacer = useCallback((atTime: number, duration: number = 2) => {
-    setSegments(prev => {
-      // Check if cursor is inside a segment
-      const segmentAtCursor = prev.find(seg => atTime >= seg.startTime && atTime < seg.endTime)
+    let insertionPoint = atTime
+    
+    // First, determine the insertion point based on segments
+    const segmentAtCursor = segments.find(seg => atTime >= seg.startTime && atTime < seg.endTime)
+    
+    if (segmentAtCursor) {
+      // Determine if cursor is on left or right half of the segment
+      const segmentMidpoint = (segmentAtCursor.startTime + segmentAtCursor.endTime) / 2
       
-      let insertionPoint = atTime
-      
-      if (segmentAtCursor) {
-        // Determine if cursor is on left or right half of the segment
-        const segmentMidpoint = (segmentAtCursor.startTime + segmentAtCursor.endTime) / 2
-        
-        if (atTime < segmentMidpoint) {
-          // Insert BEFORE this segment (at its start)
-          insertionPoint = segmentAtCursor.startTime
-        } else {
-          // Insert AFTER this segment (at its end)
-          insertionPoint = segmentAtCursor.endTime
-        }
+      if (atTime < segmentMidpoint) {
+        // Insert BEFORE this segment (at its start)
+        insertionPoint = segmentAtCursor.startTime
+      } else {
+        // Insert AFTER this segment (at its end)
+        insertionPoint = segmentAtCursor.endTime
       }
-      
-      // Now shift all segments that start at or after the insertion point
+    }
+    
+    // Update segments
+    setSegments(prev => {
+      // Shift all segments that start at or after the insertion point
       const updated = prev.map(seg => {
         if (seg.startTime >= insertionPoint) {
           // Shift this segment forward by spacer duration
@@ -208,16 +252,36 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
       return sortSegmentsByTime([...updated, spacer])
     })
     
+    // Update lyric sections - extend sections that contain the insertion point,
+    // shift sections that start after the insertion point
+    setLyricSections(prev => {
+      return prev.map(section => {
+        if (insertionPoint >= section.startTime && insertionPoint < section.endTime) {
+          // Insertion point is inside this section - extend the section
+          return { ...section, endTime: section.endTime + duration }
+        } else if (section.startTime >= insertionPoint) {
+          // Section starts after insertion point - shift it forward
+          return { 
+            ...section, 
+            startTime: section.startTime + duration, 
+            endTime: section.endTime + duration 
+          }
+        }
+        return section
+      })
+    })
+    
     logger.debug('Spacer inserted at:', atTime, 'duration:', duration)
-  }, [])
+  }, [segments])
   
   // Lyric Section operations
   const addLyricSection = useCallback((startTime: number = 0, endTime: number = 30) => {
     // Check if new section would overlap with existing sections
+    // Note: adjacent sections (startTime === section.endTime) are allowed
     const wouldOverlap = lyricSections.some(section => 
       (startTime >= section.startTime && startTime < section.endTime) ||
       (endTime > section.startTime && endTime <= section.endTime) ||
-      (startTime <= section.startTime && endTime >= section.endTime)
+      (startTime < section.startTime && endTime > section.endTime)
     )
     
     if (wouldOverlap) {
@@ -233,7 +297,7 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     
     setLyricSections(prev => [...prev, newSection].sort((a, b) => a.startTime - b.startTime))
     setSelectedSectionId(newSection.id)
-    logger.info('Lyric section added:', newSection.id)
+    logger.info('Lyric section added:', newSection.id, 'from', startTime, 'to', endTime)
   }, [lyricSections])
   
   const removeLyricSection = useCallback((id: string) => {
@@ -331,6 +395,7 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     updateLyricSection,
     selectLyricSection,
     importLyrics,
+    appendLyrics,
     setZoom,
     setScrollPosition,
     getSegmentAtTime,
