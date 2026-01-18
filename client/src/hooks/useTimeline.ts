@@ -245,18 +245,15 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   }, [selectedSectionId])
   
   const updateLyricSection = useCallback((id: string, updates: Partial<LyricSection>) => {
-    // Get the current section to calculate redistribution
-    const currentSection = lyricSections.find(s => s.id === id)
-    if (!currentSection) return
-    
-    const newStartTime = updates.startTime ?? currentSection.startTime
-    const newEndTime = updates.endTime ?? currentSection.endTime
-    
-    const startChanged = newStartTime !== currentSection.startTime
-    const endChanged = newEndTime !== currentSection.endTime
-    
-    if (startChanged || endChanged) {
-      // Redistribute segments that overlap with the section
+    // Update section first, then redistribute segments based on new bounds
+    setLyricSections(prev => {
+      const currentSection = prev.find(s => s.id === id)
+      if (!currentSection) return prev
+      
+      const newStartTime = updates.startTime ?? currentSection.startTime
+      const newEndTime = updates.endTime ?? currentSection.endTime
+      
+      // Update segments to fit new section bounds
       setSegments(prevSegments => {
         // Find segments that overlap with the CURRENT section bounds
         const segmentsInSection = prevSegments.filter(seg => 
@@ -273,38 +270,22 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
         // Prevent division by zero
         if (actualSegmentsDuration === 0) return prevSegments
         
-        // Get IDs of segments in section for efficient lookup
+        // Get IDs of segments in section
         const segmentIdsInSection = new Set(segmentsInSection.map(s => s.id))
         
-        // Calculate how to transform segments based on which edge moved
-        let newFirstStart: number
-        let scale: number
+        // New section duration
+        const newSectionDuration = newEndTime - newStartTime
         
-        if (startChanged && !endChanged) {
-          // Left edge moved: shift all segments to start at new position, scale to fit remaining space
-          newFirstStart = newStartTime
-          const newAvailableDuration = currentSection.endTime - newStartTime
-          scale = newAvailableDuration / actualSegmentsDuration
-        } else if (endChanged && !startChanged) {
-          // Right edge moved: keep start position, scale to fit new end
-          newFirstStart = actualFirstStart
-          const newAvailableDuration = newEndTime - actualFirstStart
-          scale = newAvailableDuration / actualSegmentsDuration
-        } else {
-          // Both edges moved: fit segments into new bounds
-          newFirstStart = newStartTime
-          const newDuration = newEndTime - newStartTime
-          scale = newDuration / actualSegmentsDuration
-        }
-        
-        // Redistribute each segment
+        // Redistribute each segment proportionally to fill new section bounds
         return prevSegments.map(seg => {
           if (segmentIdsInSection.has(seg.id)) {
-            const relativeStart = seg.startTime - actualFirstStart
-            const segmentDuration = seg.endTime - seg.startTime
+            // Calculate relative position (0 to 1) within the current segment span
+            const relativeStart = (seg.startTime - actualFirstStart) / actualSegmentsDuration
+            const relativeEnd = (seg.endTime - actualFirstStart) / actualSegmentsDuration
             
-            const newSegStart = newFirstStart + (relativeStart * scale)
-            const newSegEnd = newSegStart + (segmentDuration * scale)
+            // Map to new section bounds - segments always fill from start to end
+            const newSegStart = newStartTime + (relativeStart * newSectionDuration)
+            const newSegEnd = newStartTime + (relativeEnd * newSectionDuration)
             
             return {
               ...seg,
@@ -315,14 +296,14 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
           return seg
         })
       })
-    }
-    
-    // Update the section itself
-    setLyricSections(prev => prev.map(section => {
-      if (section.id !== id) return section
-      return { ...section, ...updates }
-    }).sort((a, b) => a.startTime - b.startTime))
-  }, [lyricSections])
+      
+      // Update section
+      return prev.map(section => {
+        if (section.id !== id) return section
+        return { ...section, ...updates }
+      }).sort((a, b) => a.startTime - b.startTime)
+    })
+  }, [])
   
   const selectLyricSection = useCallback((id: string | null) => {
     setSelectedSectionId(id)

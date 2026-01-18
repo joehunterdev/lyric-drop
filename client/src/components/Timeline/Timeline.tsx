@@ -247,6 +247,7 @@ export function Timeline({
                 section={section}
                 isSelected={selectedSectionId === section.id}
                 pixelsPerSecond={pixelsPerSecond}
+                duration={duration}
                 onSelect={onSelectSection}
                 onUpdate={onUpdateSection}
               />
