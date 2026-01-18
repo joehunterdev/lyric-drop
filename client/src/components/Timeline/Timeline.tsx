@@ -190,6 +190,25 @@ export function Timeline({
           
           {/* Segments Track */}
           <div className="absolute top-8 left-0 h-[56px] bg-timeline-track min-w-full" style={{ width: totalWidth }}>
+            {/* Selected section overlay indicator */}
+            {selectedSectionId && lyricSections.find(s => s.id === selectedSectionId) && (() => {
+              const selectedSection = lyricSections.find(s => s.id === selectedSectionId)!
+              return (
+                <div 
+                  className="absolute top-0 bottom-0 bg-emerald-500/20 border-x-2 border-emerald-400 pointer-events-none z-[5]"
+                  style={{ 
+                    left: timeToPixels(selectedSection.startTime), 
+                    width: timeToPixels(selectedSection.endTime - selectedSection.startTime) 
+                  }}
+                >
+                  {/* Left edge indicator */}
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400" />
+                  {/* Right edge indicator */}
+                  <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-emerald-400" />
+                </div>
+              )
+            })()}
+            
             {/* Pre-lyrics zone indicator (before first segment) */}
             {firstSegmentStart > 0 && (
               <div 
