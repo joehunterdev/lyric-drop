@@ -9,9 +9,10 @@ interface ExportButtonProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
   segments: LyricSegment[]
   disabled?: boolean
+  compact?: boolean
 }
 
-export function ExportButton({ videoRef, segments, disabled }: ExportButtonProps) {
+export function ExportButton({ videoRef, segments, disabled, compact = false }: ExportButtonProps) {
   const { exportVideo, cancelExport, progress } = useCanvasExport({
     videoRef,
     segments,
@@ -26,6 +27,52 @@ export function ExportButton({ videoRef, segments, disabled }: ExportButtonProps
     } else {
       exportVideo()
     }
+  }
+
+  // Compact mode for header - icon only on mobile
+  if (compact) {
+    return (
+      <Button
+        onClick={handleClick}
+        disabled={disabled || !videoRef.current || segments.length === 0}
+        variant={isProcessing ? "destructive" : "default"}
+        size="icon"
+        title={isProcessing ? `Cancel (${progress.progress}%)` : "Export Video"}
+        className="relative"
+      >
+        {isProcessing ? (
+          <>
+            <X className="w-5 h-5" />
+            {/* Progress ring */}
+            <svg 
+              className="absolute inset-0 w-full h-full -rotate-90"
+              viewBox="0 0 36 36"
+            >
+              <circle
+                className="stroke-primary-foreground/30"
+                strokeWidth="3"
+                fill="none"
+                cx="18"
+                cy="18"
+                r="14"
+              />
+              <circle
+                className="stroke-primary-foreground transition-all duration-300"
+                strokeWidth="3"
+                strokeLinecap="round"
+                fill="none"
+                cx="18"
+                cy="18"
+                r="14"
+                strokeDasharray={`${progress.progress * 0.88} 88`}
+              />
+            </svg>
+          </>
+        ) : (
+          <Download className="w-5 h-5" />
+        )}
+      </Button>
+    )
   }
   
   return (

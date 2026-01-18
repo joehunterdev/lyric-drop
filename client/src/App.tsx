@@ -43,17 +43,25 @@ function AppContent() {
   } = useTimeline(videoState.currentTime)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border px-4 py-3">
+      <header className="border-b border-border px-4 py-3 bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">
-            Lyric Drop
-          </h1>
+          <div className="flex items-center gap-3">
+            <img 
+              src="/logo_75.png" 
+              alt="Joe Hunter" 
+              className="h-8 w-auto"
+            />
+            <h1 className="text-xl font-bold text-muted-foreground">
+              Lyric Drop
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <ExportButton
               videoRef={videoRef}
               segments={segments}
+              compact
             />
             <Button
               variant="ghost"
@@ -130,9 +138,17 @@ function AppContent() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       {/* Footer */}
-      <footer className="border-t border-border px-4 py-3 mt-auto">
+      <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          Lyric Drop v0.1.0 • Built with React + TypeScript
+          <span className="text-primary font-semibold">Lyric Drop</span> v0.1.0 • Built by{' '}
+          <a 
+            href="https://joehunter.dev" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-primary hover:text-primary/80 transition-colors"
+          >
+            Joe Hunter
+          </a>
         </div>
       </footer>
     </div>

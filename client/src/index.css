@@ -1,32 +1,69 @@
 @import "tailwindcss";
 
+/* Joe Hunter Brand Tokens */
+:root {
+  /* Brand Colors */
+  --brand-primary: #03f8bd;
+  --brand-secondary: #8869b4;
+  --brand-tertiary: #634c82;
+  
+  /* Semantic Colors */
+  --color-success: #03f8bd;
+  --color-warning: #634c82;
+  --color-danger: #8869b4;
+  
+  /* Backgrounds */
+  --bg-dark: #333333;
+  --bg-navbar: rgba(0, 0, 0, 0.8);
+  --bg-form: #444444;
+  
+  /* Greys */
+  --grey-dark: #444444;
+  --grey-mid: #999999;
+  --grey-light: #ededed;
+  
+  /* Typography */
+  --font-primary: 'Titillium Web', 'Helvetica Neue', Arial, sans-serif;
+  --font-code: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', Monaco, monospace;
+  --text-color: rgb(244, 255, 255);
+  --font-size-base: 16px;
+}
+
 @theme {
-  /* Colors - Dark theme focused for video editing */
+  /* Colors - Dark theme with Joe Hunter brand */
   --color-background: oklch(0.145 0 0);
   --color-foreground: oklch(0.985 0 0);
   --color-card: oklch(0.178 0 0);
   --color-card-foreground: oklch(0.985 0 0);
   --color-popover: oklch(0.178 0 0);
   --color-popover-foreground: oklch(0.985 0 0);
-  --color-primary: oklch(0.7 0.15 250);
+  
+  /* Primary - Joe Hunter Cyan (#03f8bd) */
+  --color-primary: oklch(0.85 0.17 168);
   --color-primary-foreground: oklch(0.145 0 0);
-  --color-secondary: oklch(0.269 0 0);
+  
+  /* Secondary - Joe Hunter Purple (#8869b4) */
+  --color-secondary: oklch(0.55 0.13 290);
   --color-secondary-foreground: oklch(0.985 0 0);
+  
   --color-muted: oklch(0.269 0 0);
   --color-muted-foreground: oklch(0.708 0 0);
-  --color-accent: oklch(0.7 0.15 250);
+  
+  /* Accent - Uses brand primary */
+  --color-accent: oklch(0.85 0.17 168);
   --color-accent-foreground: oklch(0.145 0 0);
+  
   --color-destructive: oklch(0.396 0.141 25.723);
   --color-destructive-foreground: oklch(0.637 0.237 25.331);
   --color-border: oklch(0.3 0 0);
   --color-input: oklch(0.269 0 0);
-  --color-ring: oklch(0.7 0.15 250);
+  --color-ring: oklch(0.85 0.17 168);
   
   /* Timeline specific colors */
   --color-timeline-bg: oklch(0.12 0 0);
   --color-timeline-track: oklch(0.2 0 0);
-  --color-timeline-segment: oklch(0.6 0.18 280);
-  --color-timeline-playhead: oklch(0.9 0.2 30);
+  --color-timeline-segment: oklch(0.55 0.13 290);
+  --color-timeline-playhead: oklch(0.85 0.17 168);
 
   /* Chart colors */
   --color-chart-1: oklch(0.488 0.243 264.376);
@@ -40,20 +77,20 @@
   --radius-md: calc(var(--radius-lg) - 2px);
   --radius-sm: calc(var(--radius-lg) - 4px);
 
-  /* Sidebar (minimal for this app) */
+  /* Sidebar */
   --color-sidebar: oklch(0.145 0 0);
   --color-sidebar-foreground: oklch(0.985 0 0);
-  --color-sidebar-primary: oklch(0.7 0.15 250);
+  --color-sidebar-primary: oklch(0.85 0.17 168);
   --color-sidebar-primary-foreground: oklch(0.145 0 0);
   --color-sidebar-accent: oklch(0.269 0 0);
   --color-sidebar-accent-foreground: oklch(0.985 0 0);
   --color-sidebar-border: oklch(0.3 0 0);
-  --color-sidebar-ring: oklch(0.7 0.15 250);
+  --color-sidebar-ring: oklch(0.85 0.17 168);
   --width-sidebar: 16rem;
   --width-sidebar-icon: 3rem;
 
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  /* Typography - Titillium Web */
+  --font-sans: 'Titillium Web', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
