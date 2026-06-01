@@ -1,8 +1,15 @@
 # Agent/Copilot configuration (project-specific, not for repo)
 .github/
 
-# Private docs and test files (not for repo)
+# Private docs, test files and assets (any .private folder, anywhere)
+**/.private/
 .docs/.private/
+
+# Secrets / deploy credentials (never commit)
+.vscode/sftp.json
+**/sftp.json
+*.pem
+*.key
 
 # Large video/media files
 *.mov
