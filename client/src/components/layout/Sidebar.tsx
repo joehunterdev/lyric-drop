@@ -1,4 +1,4 @@
-import { Settings, RefreshCw, X } from 'lucide-react'
+import { Settings, RefreshCw, X, BookOpen, Wrench, Info } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -92,6 +92,39 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <p><span className="text-green-500">●</span> MP4, WebM, OGG — Native playback</p>
               <p><span className="text-amber-500">●</span> MOV, AVI, MKV — Requires transcoding</p>
             </div>
+          </div>
+          
+          {/* Divider */}
+          <div className="border-t border-border" />
+          
+          {/* Learn More Section */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Learn More
+            </h3>
+            <nav className="flex flex-col">
+              <a
+                href="/en/how-to-add-lyrics-to-tiktok-videos.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+                Guide
+              </a>
+              <a
+                href="/en/best-lyric-video-tools.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Wrench className="w-4 h-4" />
+                Tools
+              </a>
+              <a
+                href="/en/about-lyric-drop.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Info className="w-4 h-4" />
+                About
+              </a>
+            </nav>
           </div>
         </div>
       </aside>

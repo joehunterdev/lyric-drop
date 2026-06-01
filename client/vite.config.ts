@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: mode === 'development' ? env.VITE_DEV_HOST || 'localhost' : true,
       port: parseInt(env.VITE_DEV_PORT || '8081'),
-      allowedHosts: ['.local', 'localhost'],
+      allowedHosts: ['.local', '.localhost', 'localhost'],
       hmr: {
         overlay: true,
       },

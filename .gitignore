@@ -11,6 +11,9 @@
 *.pem
 *.key
 
+# Local-only dev tools (not for repo)
+converter-server/
+
 # Large video/media files
 *.mov
 *.avi

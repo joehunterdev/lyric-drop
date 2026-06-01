@@ -8,8 +8,8 @@ interface TimelineSegmentProps {
   isSelected: boolean
   pixelsPerSecond: number
   duration: number
-  minTime: number  // Section start (can't resize left edge before this)
-  maxTime: number  // Section end (can't resize right edge past this)
+  minTime?: number
+  maxTime?: number
   onSelect: (id: string) => void
   onUpdate: (id: string, updates: Partial<LyricSegment>) => void
 }
@@ -17,14 +17,14 @@ interface TimelineSegmentProps {
 type DragType = 'left' | 'right' | null
 
 const HANDLE_WIDTH = 8 // pixels
-const SEGMENT_GAP = 3 // pixels gap between segments
+const SEGMENT_MARGIN = 2 // pixels between segments
 
 export function TimelineSegment({
   segment,
   isSelected,
   pixelsPerSecond,
   duration,
-  minTime,
+  minTime = 0,
   maxTime,
   onSelect,
   onUpdate,
@@ -53,18 +53,20 @@ export function TimelineSegment({
     const startX = e.clientX
     const startStartTime = segment.startTime
     const startEndTime = segment.endTime
+    const lowerBound = minTime
+    const upperBound = maxTime ?? duration
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX
       const deltaTime = deltaX / pixelsPerSecond
       
       if (type === 'left') {
-        // Adjust start time - clamp to section bounds
-        const newStartTime = Math.max(minTime, Math.min(startStartTime + deltaTime, startEndTime - 0.1))
+        // Adjust start time
+        const newStartTime = Math.max(lowerBound, Math.min(startStartTime + deltaTime, startEndTime - 0.1))
         onUpdate(segment.id, { startTime: newStartTime })
       } else if (type === 'right') {
-        // Adjust end time - clamp to section bounds
-        const newEndTime = Math.max(startStartTime + 0.1, Math.min(startEndTime + deltaTime, maxTime))
+        // Adjust end time
+        const newEndTime = Math.max(startStartTime + 0.1, Math.min(startEndTime + deltaTime, upperBound))
         onUpdate(segment.id, { endTime: newEndTime })
       }
     }
@@ -78,7 +80,7 @@ export function TimelineSegment({
     
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }, [isSelected, segment, pixelsPerSecond, duration, onSelect, onUpdate])
+  }, [isSelected, segment, pixelsPerSecond, duration, minTime, maxTime, onSelect, onUpdate])
   
   // Handle click to select
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -95,7 +97,6 @@ export function TimelineSegment({
       ref={segmentRef}
       className={cn(
         'absolute top-2 bottom-2 rounded cursor-pointer transition-colors',
-        'border-r border-r-black/40', // Right border creates visual separation between segments
         isSpacer 
           ? 'bg-muted/50 border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50'
           : 'bg-timeline-segment hover:brightness-110',
@@ -103,8 +104,8 @@ export function TimelineSegment({
         isDragging && 'opacity-80'
       )}
       style={{
-        left: left + SEGMENT_GAP / 2,
-        width: Math.max(width - SEGMENT_GAP, 16),
+        left: left + SEGMENT_MARGIN,
+        width: Math.max(width - SEGMENT_MARGIN * 2, 20),
       }}
       onClick={handleClick}
     >

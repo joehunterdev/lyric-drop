@@ -8,11 +8,15 @@ import { Timeline } from '@/components/Timeline'
 import { LyricEditor } from '@/components/LyricEditor'
 import { ExportButton } from '@/components/ExportButton'
 import { Sidebar } from '@/components/layout'
+import { VideoConverter } from '@/components/VideoConverter'
 import { Button } from '@/components/ui/button'
 import './index.css'
 
+type AppView = 'editor' | 'converter'
+
 function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [currentView, setCurrentView] = useState<AppView>('editor')
   
   const {
     videoRef,
@@ -49,7 +53,7 @@ function AppContent() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
-              src="/logo_75.png" 
+              src="/logo.png" 
               alt="Joe Hunter" 
               className="h-8 w-auto"
             />
@@ -58,11 +62,42 @@ function AppContent() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <ExportButton
-              videoRef={videoRef}
-              segments={segments}
-              compact
-            />
+            {/* Content Pages Nav */}
+            <nav className="hidden md:flex items-center gap-1 mr-2">
+              <Button variant="ghost" size="sm" asChild>
+                <a href="/en/how-to-add-lyrics-to-tiktok-videos.html">Guide</a>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <a href="/en/best-lyric-video-tools.html">Tools</a>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <a href="/en/about-lyric-drop.html">About</a>
+              </Button>
+            </nav>
+            {/* View Switcher */}
+            <div className="flex gap-1 mr-2">
+              <Button
+                variant={currentView === 'editor' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setCurrentView('editor')}
+              >
+                Editor
+              </Button>
+              <Button
+                variant={currentView === 'converter' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setCurrentView('converter')}
+              >
+                Converter
+              </Button>
+            </div>
+            {currentView === 'editor' && (
+              <ExportButton
+                videoRef={videoRef}
+                segments={segments}
+                compact
+              />
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -76,10 +111,12 @@ function AppContent() {
       </header>
       
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Video Player - Left/Center */}
-          <div className="lg:col-span-2">
+      <main className="flex-1">
+        {currentView === 'editor' ? (
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Video Player - Left/Center */}
+              <div className="lg:col-span-2">
             <VideoPlayer
               videoRef={videoRef}
               videoState={videoState}
@@ -132,6 +169,10 @@ function AppContent() {
             />
           </div>
         </div>
+      </div>
+        ) : (
+          <VideoConverter />
+        )}
       </main>
       
       {/* Sidebar */}
