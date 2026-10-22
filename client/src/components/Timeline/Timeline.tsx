@@ -1,11 +1,13 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react'
-import { Pause, ZoomIn, ZoomOut } from 'lucide-react'
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
+import { Pause, ZoomIn, ZoomOut, Gauge, Undo2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
 import { TimelineLyricSection } from './TimelineLyricSection'
-import { formatTime } from '@/utils'
+import { RetimePanel } from './RetimePanel'
+import { formatTime, retimeFollowingSegments } from '@/utils'
+import type { RetimeOptions } from '@/utils'
 import type { LyricSegment, LyricSection, TimelineState } from '@/types'
 
 interface TimelineProps {
@@ -24,6 +26,9 @@ interface TimelineProps {
   onUpdateSection: (id: string, updates: Partial<LyricSection>) => void
   onSeek: (time: number) => void
   onZoom: (zoom: number) => void
+  onRetime: (id: string, options: RetimeOptions) => void
+  onUndoRetime: () => void
+  canUndoRetime: boolean
 }
 
 export function Timeline({
@@ -42,10 +47,36 @@ export function Timeline({
   onUpdateSection,
   onSeek,
   onZoom,
+  onRetime,
+  onUndoRetime,
+  canUndoRetime,
 }: TimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  
+
+  // Retime settings live here so they survive closing the panel
+  const [retimeOpen, setRetimeOpen] = useState(false)
+  const [cadence, setCadence] = useState(0)
+  const [bpm, setBpm] = useState('')
+
+  const retimeOptions = useMemo<RetimeOptions>(() => ({
+    cadence: cadence / 100,
+    bpm: parseFloat(bpm) > 0 ? parseFloat(bpm) : null,
+    mediaDuration: duration,
+  }), [cadence, bpm, duration])
+
+  const retimePreview = useMemo(() => (
+    selectedSegmentId
+      ? retimeFollowingSegments(segments, lyricSections, selectedSegmentId, retimeOptions)
+      : null
+  ), [segments, lyricSections, selectedSegmentId, retimeOptions])
+
+  const handleApplyRetime = useCallback(() => {
+    if (selectedSegmentId) {
+      onRetime(selectedSegmentId, retimeOptions)
+    }
+  }, [selectedSegmentId, retimeOptions, onRetime])
+
   const pixelsPerSecond = timelineState.pixelsPerSecond * timelineState.zoom
   
   // Calculate the effective duration (max of video duration or last segment end)
@@ -175,6 +206,27 @@ export function Timeline({
             <Pause className="w-4 h-4 mr-1" />
             Insert Space
           </Button>
+          <Button
+            variant={retimeOpen ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setRetimeOpen(open => !open)}
+            disabled={segments.length === 0}
+            title="Retime the following lines from the selected line"
+          >
+            <Gauge className="w-4 h-4 mr-1" />
+            Retime
+          </Button>
+          {canUndoRetime && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onUndoRetime}
+              title="Undo the last retime"
+            >
+              <Undo2 className="w-4 h-4 mr-1" />
+              Undo retime
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={timelineState.zoom <= 0.5}>
@@ -188,7 +240,19 @@ export function Timeline({
           </Button>
         </div>
       </div>
-      
+
+      {retimeOpen && (
+        <RetimePanel
+          preview={retimePreview}
+          cadence={cadence}
+          bpm={bpm}
+          onCadenceChange={setCadence}
+          onBpmChange={setBpm}
+          onApply={handleApplyRetime}
+          onClose={() => setRetimeOpen(false)}
+        />
+      )}
+
       <ScrollArea className="w-full" ref={scrollAreaRef}>
         <div 
           ref={trackRef}

@@ -1,0 +1,25 @@
+{
+  "name": "lyric-drop.joehunter.dev",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Lyric Drop - monorepo root scripts for client and converter-server",
+  "workspaces": [
+    "client",
+    "converter-server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n client,server -c cyan,magenta \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=converter-server",
+    "start:server": "npm run start --workspace=converter-server",
+    "build": "npm run build --workspace=client",
+    "lint": "npm run lint --workspace=client",
+    "preview": "npm run preview --workspace=client",
+    "install:all": "npm install",
+    "clean": "rimraf client/dist client/node_modules converter-server/node_modules node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "rimraf": "^6.0.1"
+  }
+}

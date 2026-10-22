@@ -1,19 +1,61 @@
 import { useState, useCallback, useRef } from 'react'
 
-import { 
-  logger, 
+import {
+  logger,
   canVideoBeExported,
+  findActiveSegment,
+  renderFrame,
   EXPORT_BITRATE,
   EXPORT_FRAMERATE,
-  LYRIC_FONT_SIZE_PERCENT,
-  LYRIC_BG_OPACITY,
+  OUTPUT_FORMATS,
 } from '@/utils'
 import { ExportStatus } from '@/types/enums'
-import type { LyricSegment, ExportProgress } from '@/types'
+import type { ImageFit, OutputFormat } from '@/types/enums'
+import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox } from '@/types'
+
+/**
+ * What the export draws behind the lyrics
+ */
+export type ExportSource =
+  | { kind: 'video' }
+  | { kind: 'image'; image: ImageBackground | null; format: OutputFormat; fit: ImageFit; box: LyricBox }
 
 interface UseCanvasExportOptions {
-  videoRef: React.RefObject<HTMLVideoElement | null>
+  /** The <video> (video mode) or <audio> (image mode) element driving playback */
+  mediaRef: React.RefObject<HTMLMediaElement | null>
   segments: LyricSegment[]
+  source: ExportSource
+}
+
+interface AudioGraph {
+  context: AudioContext
+  destination: MediaStreamAudioDestinationNode
+}
+
+/**
+ * Web Audio graphs per media element. createMediaElementSource can only be
+ * called once per element, so the graph is built once and reused.
+ */
+const audioGraphs = new WeakMap<HTMLMediaElement, AudioGraph>()
+
+/**
+ * Get a recordable audio track for a media element via Web Audio.
+ * Works for <audio> in all major browsers (element.captureStream doesn't).
+ */
+async function captureMediaAudio(media: HTMLMediaElement): Promise<MediaStreamTrack[]> {
+  let graph = audioGraphs.get(media)
+  if (!graph) {
+    const context = new AudioContext()
+    const source = context.createMediaElementSource(media)
+    const destination = context.createMediaStreamDestination()
+    // Once routed through Web Audio the element is silent unless connected to the speakers
+    source.connect(context.destination)
+    source.connect(destination)
+    graph = { context, destination }
+    audioGraphs.set(media, graph)
+  }
+  await graph.context.resume()
+  return graph.destination.stream.getAudioTracks()
 }
 
 interface UseCanvasExportReturn {
@@ -26,9 +68,10 @@ interface UseCanvasExportReturn {
  * Hook for exporting video with Lyric Drops using Canvas + MediaRecorder
  * This approach exports in real-time (30s video = ~30s export) without slow WASM transcoding
  */
-export function useCanvasExport({ 
-  videoRef, 
-  segments 
+export function useCanvasExport({
+  mediaRef,
+  segments,
+  source,
 }: UseCanvasExportOptions): UseCanvasExportReturn {
   const [progress, setProgress] = useState<ExportProgress>({
     status: ExportStatus.IDLE,
@@ -42,86 +85,33 @@ export function useCanvasExport({
   const isExportingRef = useRef(false)
 
   /**
-   * Find active segment at a given time
-   */
-  const getActiveSegment = useCallback((currentTime: number): LyricSegment | null => {
-    return segments.find(
-      segment => currentTime >= segment.startTime && currentTime <= segment.endTime
-    ) || null
-  }, [segments])
-
-  /**
-   * Draw video frame with Lyric Drop to canvas
-   */
-  const drawFrame = useCallback((
-    ctx: CanvasRenderingContext2D, 
-    video: HTMLVideoElement,
-    width: number,
-    height: number
-  ) => {
-    // Draw video frame
-    ctx.drawImage(video, 0, 0, width, height)
-    
-    // Get active lyric
-    const activeSegment = getActiveSegment(video.currentTime)
-    
-    if (activeSegment) {
-      // Calculate font size relative to video height (from config)
-      const fontSize = Math.round(height * (LYRIC_FONT_SIZE_PERCENT / 100))
-      const padding = Math.round(height * 0.02)
-      const bottomMargin = Math.round(height * 0.12) // Position above bottom
-      
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      
-      // Measure text for background
-      const text = activeSegment.text
-      const lines = text.split('\n')
-      const lineHeight = fontSize * 1.3
-      const maxWidth = lines.reduce((max, line) => {
-        const metrics = ctx.measureText(line)
-        return Math.max(max, metrics.width)
-      }, 0)
-      
-      const boxWidth = maxWidth + padding * 2
-      const boxHeight = lines.length * lineHeight + padding * 2
-      const boxX = (width - boxWidth) / 2
-      const boxY = height - bottomMargin - boxHeight
-      
-      // Draw semi-transparent background (from config)
-      ctx.fillStyle = `rgba(0, 0, 0, ${LYRIC_BG_OPACITY})`
-      ctx.beginPath()
-      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8)
-      ctx.fill()
-      
-      // Draw text
-      ctx.fillStyle = '#ffffff'
-      lines.forEach((line, index) => {
-        const y = boxY + padding + lineHeight * 0.5 + index * lineHeight
-        ctx.fillText(line, width / 2, y)
-      })
-    }
-  }, [getActiveSegment])
-
-  /**
    * Start export process
    */
   const exportVideo = useCallback(async () => {
-    const video = videoRef.current
-    
-    console.log('[Export] Starting export...', { video: !!video, segments: segments.length })
-    
-    if (!video) {
-      console.error('[Export] No video element')
+    const media = mediaRef.current
+    const isImage = source.kind === 'image'
+
+    console.log('[Export] Starting export...', { source: source.kind, media: !!media, segments: segments.length })
+
+    if (!media) {
+      console.error('[Export] No media element')
       setProgress({
         status: ExportStatus.ERROR,
         progress: 0,
-        message: 'No video loaded',
+        message: isImage ? 'No audio loaded' : 'No video loaded',
       })
       return
     }
-    
+
+    if (isImage && !source.image) {
+      setProgress({
+        status: ExportStatus.ERROR,
+        progress: 0,
+        message: 'No image loaded',
+      })
+      return
+    }
+
     if (segments.length === 0) {
       console.error('[Export] No segments')
       setProgress({
@@ -141,26 +131,41 @@ export function useCanvasExport({
         message: 'Preparing export...',
       })
 
-      // Get video dimensions
-      const width = video.videoWidth
-      const height = video.videoHeight
-      const duration = video.duration
+      // Output size: fixed per format for images, native size for video
+      let width: number
+      let height: number
+      let background: FrameBackground
 
-      console.log('[Export] Video dimensions:', { width, height, duration })
+      if (source.kind === 'image') {
+        ;({ width, height } = OUTPUT_FORMATS[source.format])
+        background = { kind: 'image', source: source.image!.bitmap, fit: source.fit }
+      } else {
+        if (!(media instanceof HTMLVideoElement)) {
+          throw new Error('No video loaded')
+        }
+        width = media.videoWidth
+        height = media.videoHeight
+        background = { kind: 'video', source: media }
+      }
+      const duration = media.duration
+
+      console.log('[Export] Output dimensions:', { width, height, duration })
 
       if (!width || !height || !duration) {
-        throw new Error('Video not properly loaded - missing dimensions or duration')
+        throw new Error('Media not properly loaded - missing dimensions or duration')
       }
 
-      // Check if video can be drawn to canvas (codec compatibility)
-      const canExport = await canVideoBeExported(video)
-      console.log('[Export] Can video be exported:', canExport)
-      
-      if (!canExport) {
-        throw new Error('This video format cannot be exported. Please convert to MP4 (H.264) first. Try HandBrake (free) or an online converter.')
+      if (background.kind === 'video') {
+        // Check if video can be drawn to canvas (codec compatibility)
+        const canExport = await canVideoBeExported(background.source)
+        console.log('[Export] Can video be exported:', canExport)
+
+        if (!canExport) {
+          throw new Error('This video format cannot be exported. Please convert to MP4 (H.264) first. Try HandBrake (free) or an online converter.')
+        }
       }
 
-      logger.info('Starting canvas export', { width, height, duration })
+      logger.info('Starting canvas export', { source: source.kind, width, height, duration })
 
       // Create canvas
       const canvas = document.createElement('canvas')
@@ -176,9 +181,11 @@ export function useCanvasExport({
       // Create MediaRecorder with configured framerate
       const stream = canvas.captureStream(EXPORT_FRAMERATE)
       
-      // Add audio track if video has audio
-      const audioTracks = (video as HTMLVideoElement & { captureStream?: () => MediaStream })
-        .captureStream?.()?.getAudioTracks()
+      // Add audio track - image mode records the <audio> element via Web Audio
+      const audioTracks = isImage
+        ? await captureMediaAudio(media)
+        : (media as HTMLMediaElement & { captureStream?: () => MediaStream })
+          .captureStream?.()?.getAudioTracks()
       
       if (audioTracks && audioTracks.length > 0) {
         audioTracks.forEach(track => stream.addTrack(track))
@@ -229,7 +236,9 @@ export function useCanvasExport({
         
         const a = document.createElement('a')
         a.href = url
-        a.download = `lyric-overlay-${Date.now()}.webm`
+        a.download = source.kind === 'image'
+          ? `lyric-drop-${source.format}-${Date.now()}.webm`
+          : `lyric-overlay-${Date.now()}.webm`
         a.style.display = 'none'
         document.body.appendChild(a)
         
@@ -281,37 +290,45 @@ export function useCanvasExport({
         message: 'Recording... 0%',
       })
 
-      // Rewind video and play
-      video.currentTime = 0
-      
-      console.log('[Export] Starting video playback...')
-      
+      // Rewind media and play
+      media.currentTime = 0
+
+      console.log('[Export] Starting playback...')
+
       try {
-        await video.play()
-        console.log('[Export] Video playing')
+        await media.play()
+        console.log('[Export] Media playing')
       } catch (playError) {
-        console.error('[Export] Video play failed:', playError)
-        throw new Error('Could not play video - check browser autoplay settings')
+        console.error('[Export] Media play failed:', playError)
+        throw new Error('Could not play media - check browser autoplay settings')
       }
 
-      // Animation loop - draw frames to canvas
+      const box = source.kind === 'image' ? source.box : undefined
+
+      // Animation loop - draw frames to canvas. Redraw every frame even for a
+      // still image: captureStream only emits frames when the canvas is painted.
       const renderLoop = () => {
         if (!isExportingRef.current) return
 
-        drawFrame(ctx, video, width, height)
+        const activeSegment = findActiveSegment(segments, media.currentTime)
+        renderFrame(ctx, width, height, {
+          background,
+          text: activeSegment?.text ?? null,
+          box,
+        })
 
         // Update progress
-        const progressPercent = Math.round((video.currentTime / duration) * 100)
+        const progressPercent = Math.round((media.currentTime / duration) * 100)
         setProgress(prev => ({
           ...prev,
           progress: progressPercent,
           message: `Recording... ${progressPercent}%`,
         }))
 
-        // Check if video ended
-        if (video.ended || video.currentTime >= duration) {
-          console.log('[Export] Video ended, stopping recorder')
-          video.pause()
+        // Check if media ended
+        if (media.ended || media.currentTime >= duration) {
+          console.log('[Export] Media ended, stopping recorder')
+          media.pause()
           mediaRecorder.stop()
           // Don't set isExportingRef.current = false here!
           // The onstop callback needs it to be true to trigger download
@@ -332,7 +349,7 @@ export function useCanvasExport({
         message: error instanceof Error ? error.message : 'Export failed',
       })
     }
-  }, [videoRef, segments, drawFrame])
+  }, [mediaRef, segments, source])
 
   /**
    * Cancel ongoing export
@@ -349,8 +366,8 @@ export function useCanvasExport({
       mediaRecorderRef.current.stop()
     }
 
-    if (videoRef.current) {
-      videoRef.current.pause()
+    if (mediaRef.current) {
+      mediaRef.current.pause()
     }
 
     setProgress({
@@ -360,7 +377,7 @@ export function useCanvasExport({
     })
 
     logger.info('Export cancelled')
-  }, [videoRef])
+  }, [mediaRef])
 
   return {
     exportVideo,

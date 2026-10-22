@@ -2,22 +2,27 @@ import { Download, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCanvasExport } from '@/hooks'
+import type { ExportSource } from '@/hooks/useCanvasExport'
 import type { LyricSegment } from '@/types'
 import { ExportStatus } from '@/types'
 
 interface ExportButtonProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>
+  mediaRef: React.RefObject<HTMLMediaElement | null>
   segments: LyricSegment[]
+  source: ExportSource
   disabled?: boolean
   compact?: boolean
 }
 
-export function ExportButton({ videoRef, segments, disabled, compact = false }: ExportButtonProps) {
+export function ExportButton({ mediaRef, segments, source, disabled, compact = false }: ExportButtonProps) {
   const { exportVideo, cancelExport, progress } = useCanvasExport({
-    videoRef,
+    mediaRef,
     segments,
+    source,
   })
-  
+
+  const isReady = segments.length > 0 && (source.kind === 'video' || !!source.image)
+
   const isProcessing = progress.status === ExportStatus.PREPARING || 
                        progress.status === ExportStatus.PROCESSING
   
@@ -34,7 +39,7 @@ export function ExportButton({ videoRef, segments, disabled, compact = false }: 
     return (
       <Button
         onClick={handleClick}
-        disabled={disabled || !videoRef.current || segments.length === 0}
+        disabled={disabled || !isReady}
         variant={isProcessing ? "destructive" : "default"}
         size="icon"
         title={isProcessing ? `Cancel (${progress.progress}%)` : "Export Video"}
@@ -79,7 +84,7 @@ export function ExportButton({ videoRef, segments, disabled, compact = false }: 
     <div className="space-y-2">
       <Button
         onClick={handleClick}
-        disabled={disabled || !videoRef.current || segments.length === 0}
+        disabled={disabled || !isReady}
         variant={isProcessing ? "destructive" : "default"}
         className="w-full"
         size="lg"

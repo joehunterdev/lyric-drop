@@ -1,4 +1,5 @@
-export { useVideoPlayer } from './useVideoPlayer'
+export { useMediaPlayer } from './useMediaPlayer'
+export { useImageBackground } from './useImageBackground'
 export { useTimeline } from './useTimeline'
 export { useFFmpeg, TranscodeStatus } from './useFFmpeg'
 export { useCanvasExport } from './useCanvasExport'

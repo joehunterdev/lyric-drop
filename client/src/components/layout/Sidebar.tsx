@@ -1,4 +1,4 @@
-import { Settings, RefreshCw, X, BookOpen, Wrench, Info } from 'lucide-react'
+import { Settings, RefreshCw, X, BookOpen, Wrench, Info, Globe } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -99,8 +99,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           
           {/* Learn More Section */}
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Learn More
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" />
+              English
             </h3>
             <nav className="flex flex-col">
               <a
@@ -123,6 +124,37 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               >
                 <Info className="w-4 h-4" />
                 About
+              </a>
+            </nav>
+          </div>
+
+          {/* Spanish Section */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" />
+              Español
+            </h3>
+            <nav className="flex flex-col">
+              <a
+                href="/es/como-agregar-letras-a-videos-tiktok.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+                Guía
+              </a>
+              <a
+                href="/es/mejores-herramientas-videos-letras.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Wrench className="w-4 h-4" />
+                Herramientas
+              </a>
+              <a
+                href="/es/acerca-de-lyric-drop.html"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Info className="w-4 h-4" />
+                Acerca de
               </a>
             </nav>
           </div>

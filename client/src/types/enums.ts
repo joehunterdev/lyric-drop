@@ -43,6 +43,33 @@ export const ExportStatus = {
 export type ExportStatus = (typeof ExportStatus)[keyof typeof ExportStatus]
 
 /**
+ * Background source for the editor - a video, or a still image plus an audio track
+ */
+export const SourceMode = {
+  VIDEO: 'video',
+  IMAGE: 'image',
+} as const
+export type SourceMode = (typeof SourceMode)[keyof typeof SourceMode]
+
+/**
+ * Output frame format for image mode
+ */
+export const OutputFormat = {
+  REEL: 'reel',
+  YOUTUBE: 'youtube',
+} as const
+export type OutputFormat = (typeof OutputFormat)[keyof typeof OutputFormat]
+
+/**
+ * How a still image is fitted to the output frame
+ */
+export const ImageFit = {
+  COVER: 'cover',
+  BLUR_FILL: 'blur-fill',
+} as const
+export type ImageFit = (typeof ImageFit)[keyof typeof ImageFit]
+
+/**
  * Text alignment options for lyrics
  */
 export const TextAlign = {

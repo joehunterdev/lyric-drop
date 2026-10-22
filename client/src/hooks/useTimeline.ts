@@ -10,8 +10,15 @@ import {
   updateSegmentText,
   createSpacerSegment,
   parseLyricsToLines,
+  retimeFollowingSegments,
   logger,
 } from '@/utils'
+import type { RetimeOptions, RetimeResult } from '@/utils'
+
+interface TimelineSnapshot {
+  segments: LyricSegment[]
+  lyricSections: LyricSection[]
+}
 
 interface UseTimelineReturn {
   segments: LyricSegment[]
@@ -38,7 +45,10 @@ interface UseTimelineReturn {
   // Bulk operations
   importLyrics: (text: string, videoDuration: number, startTime?: number, endTime?: number) => void
   appendLyrics: (text: string, sectionStart: number, sectionEnd: number, existingSegmentIds: string[]) => void
-  
+  retimeFromSegment: (id: string, options: RetimeOptions) => RetimeResult | null
+  undoRetime: () => void
+  canUndoRetime: boolean
+
   // Timeline controls
   setZoom: (zoom: number) => void
   setScrollPosition: (position: number) => void
@@ -59,7 +69,14 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [timelineState, setTimelineState] = useState<TimelineState>(initialTimelineState)
-  
+  const [retimeUndo, setRetimeUndo] = useState<{ before: TimelineSnapshot; after: TimelineSnapshot } | null>(null)
+
+  // Undo is only offered while nothing has changed since the retime,
+  // so it can never throw away later edits
+  const canUndoRetime = retimeUndo !== null &&
+    retimeUndo.after.segments === segments &&
+    retimeUndo.after.lyricSections === lyricSections
+
   // Compute active segment based on current time
   const activeSegment = useMemo(() => {
     return findActiveSegment(segments, currentTime)
@@ -292,6 +309,34 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     })
   }, [])
   
+  // Retime all lines after a reference line from its length and cadence
+  const retimeFromSegment = useCallback((id: string, options: RetimeOptions) => {
+    const result = retimeFollowingSegments(segments, lyricSections, id, options)
+    if (!result) return null
+
+    const nextSections = lyricSections.map(section =>
+      section.id === result.section.id ? result.section : section
+    )
+
+    setRetimeUndo({
+      before: { segments, lyricSections },
+      after: { segments: result.segments, lyricSections: nextSections },
+    })
+    setSegments(result.segments)
+    setLyricSections(nextSections)
+
+    logger.info(`Retimed ${result.retimedCount} segments from reference`, id, options)
+    return result
+  }, [segments, lyricSections])
+
+  const undoRetime = useCallback(() => {
+    if (!canUndoRetime || !retimeUndo) return
+    setSegments(retimeUndo.before.segments)
+    setLyricSections(retimeUndo.before.lyricSections)
+    setRetimeUndo(null)
+    logger.info('Retime undone')
+  }, [canUndoRetime, retimeUndo])
+
   const setZoom = useCallback((zoom: number) => {
     setTimelineState(prev => ({
       ...prev,
@@ -506,6 +551,9 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
     selectLyricSection,
     importLyrics,
     appendLyrics,
+    retimeFromSegment,
+    undoRetime,
+    canUndoRetime,
     setZoom,
     setScrollPosition,
     getSegmentAtTime,

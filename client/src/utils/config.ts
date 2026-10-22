@@ -3,6 +3,9 @@
  * Reads from environment variables with sensible defaults
  */
 
+import type { OutputFormat } from '@/types/enums'
+import type { LyricBox } from '@/types'
+
 // ===========================================
 // Export Settings
 // ===========================================
@@ -41,6 +44,58 @@ export const MAX_FILE_SIZE = parseInt(
   import.meta.env.VITE_MAX_FILE_SIZE || '1073741824',
   10
 )
+
+/** Allowed image file extensions (image mode background) */
+export const ALLOWED_IMAGE_EXTENSIONS = (
+  import.meta.env.VITE_ALLOWED_IMAGE_EXTENSIONS || '.jpg,.jpeg,.png,.webp'
+).split(',').map((ext: string) => ext.trim().toLowerCase())
+
+/** Allowed image MIME types */
+export const ALLOWED_IMAGE_TYPES = (
+  import.meta.env.VITE_ALLOWED_IMAGE_TYPES || 'image/jpeg,image/png,image/webp'
+).split(',').map((type: string) => type.trim())
+
+/** Allowed audio file extensions (image mode soundtrack) */
+export const ALLOWED_AUDIO_EXTENSIONS = (
+  import.meta.env.VITE_ALLOWED_AUDIO_EXTENSIONS || '.mp3,.m4a,.aac,.wav,.ogg,.webm'
+).split(',').map((ext: string) => ext.trim().toLowerCase())
+
+/** Allowed audio MIME types */
+export const ALLOWED_AUDIO_TYPES = (
+  import.meta.env.VITE_ALLOWED_AUDIO_TYPES ||
+  'audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/ogg,audio/webm'
+).split(',').map((type: string) => type.trim())
+
+// ===========================================
+// Output Formats (image mode)
+// ===========================================
+
+export interface OutputFormatSpec {
+  width: number
+  height: number
+  label: string
+  /** Default lyric area for this format */
+  lyricBox: LyricBox
+}
+
+/**
+ * Fixed export sizes for image mode.
+ * Reels keep lyrics higher so platform UI (captions, buttons) doesn't cover them.
+ */
+export const OUTPUT_FORMATS: Record<OutputFormat, OutputFormatSpec> = {
+  reel: {
+    width: 1080,
+    height: 1920,
+    label: 'Reel 9:16',
+    lyricBox: { x: 0.075, y: 0.58, width: 0.85, height: 0.2 },
+  },
+  youtube: {
+    width: 1920,
+    height: 1080,
+    label: 'YouTube 16:9',
+    lyricBox: { x: 0.075, y: 0.6, width: 0.85, height: 0.28 },
+  },
+}
 
 // ===========================================
 // Lyric Settings
@@ -123,4 +178,44 @@ export function validateVideoFile(file: File): { valid: boolean; error?: string 
   }
 
   return { valid: true }
+}
+
+/**
+ * Validate a file against allowed MIME types / extensions and the size limit
+ */
+function validateFile(
+  file: File,
+  types: string[],
+  extensions: string[]
+): { valid: boolean; error?: string } {
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+  if (!types.includes(file.type) && !extensions.includes(ext)) {
+    return {
+      valid: false,
+      error: `Only ${extensions.join(', ')} files are supported`,
+    }
+  }
+
+  if (!isFileSizeAllowed(file.size)) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size is ${formatMaxFileSize()}`,
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Validate an image file for upload
+ */
+export function validateImageFile(file: File): { valid: boolean; error?: string } {
+  return validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS)
+}
+
+/**
+ * Validate an audio file for upload
+ */
+export function validateAudioFile(file: File): { valid: boolean; error?: string } {
+  return validateFile(file, ALLOWED_AUDIO_TYPES, ALLOWED_AUDIO_EXTENSIONS)
 }

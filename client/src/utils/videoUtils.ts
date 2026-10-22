@@ -30,26 +30,40 @@ export function parseTimeToSeconds(timeString: string): number {
 }
 
 /**
+ * Read the duration of a video or audio File via a detached media element
+ */
+function getMediaDuration(file: File, kind: 'video' | 'audio'): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const media = document.createElement(kind)
+    media.preload = 'metadata'
+
+    media.onloadedmetadata = () => {
+      URL.revokeObjectURL(media.src)
+      logger.debug(`${kind} duration:`, media.duration)
+      resolve(media.duration)
+    }
+
+    media.onerror = () => {
+      URL.revokeObjectURL(media.src)
+      reject(new Error(`Failed to load ${kind} metadata`))
+    }
+
+    media.src = URL.createObjectURL(file)
+  })
+}
+
+/**
  * Get video duration from a File
  */
 export function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(video.src)
-      logger.debug('Video duration:', video.duration)
-      resolve(video.duration)
-    }
-    
-    video.onerror = () => {
-      URL.revokeObjectURL(video.src)
-      reject(new Error('Failed to load video metadata'))
-    }
-    
-    video.src = URL.createObjectURL(file)
-  })
+  return getMediaDuration(file, 'video')
+}
+
+/**
+ * Get audio duration from a File
+ */
+export function getAudioDuration(file: File): Promise<number> {
+  return getMediaDuration(file, 'audio')
 }
 
 /**

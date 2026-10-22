@@ -1,19 +1,18 @@
 import { useRef, useCallback } from 'react'
-import { Play, Pause, RotateCcw, Upload, FileVideo } from 'lucide-react'
+import { Upload, FileVideo } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { 
-  formatTime, 
-  validateVideoFile, 
+import { PlaybackControls } from './PlaybackControls'
+import {
+  validateVideoFile,
   formatMaxFileSize,
   ALLOWED_VIDEO_EXTENSIONS,
   ALLOWED_VIDEO_TYPES,
 } from '@/utils'
-import type { VideoState, LyricSegment } from '@/types'
+import type { MediaState, LyricSegment } from '@/types'
 
 interface VideoPlayerProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>
-  videoState: VideoState
+  mediaRef: React.RefObject<HTMLMediaElement | null>
+  mediaState: MediaState
   activeSegment: LyricSegment | null
   onLoadVideo: (file: File) => Promise<void>
   onTogglePlayPause: () => void
@@ -21,8 +20,8 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({
-  videoRef,
-  videoState,
+  mediaRef,
+  mediaState,
   activeSegment,
   onLoadVideo,
   onTogglePlayPause,
@@ -52,19 +51,15 @@ export function VideoPlayer({
     fileInputRef.current?.click()
   }, [])
   
-  const handleRestart = useCallback(() => {
-    onSeek(0)
-  }, [onSeek])
-  
   return (
     <div className="flex flex-col gap-4">
       {/* Video Container */}
       <div className="relative aspect-[9/16] max-h-[60vh] bg-black rounded-lg overflow-hidden">
-        {videoState.url ? (
+        {mediaState.url ? (
           <>
             <video
-              ref={videoRef}
-              src={videoState.url}
+              ref={mediaRef as React.RefObject<HTMLVideoElement | null>}
+              src={mediaState.url}
               className="w-full h-full object-contain"
               playsInline
             />
@@ -102,33 +97,12 @@ export function VideoPlayer({
       </div>
       
       {/* Playback Controls */}
-      {videoState.isLoaded && (
-        <div className="flex items-center justify-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRestart}
-            title="Restart"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          
-          <Button
-            size="lg"
-            onClick={onTogglePlayPause}
-            className="w-16 h-16 rounded-full"
-          >
-            {videoState.isPlaying ? (
-              <Pause className="w-6 h-6" />
-            ) : (
-              <Play className="w-6 h-6 ml-1" />
-            )}
-          </Button>
-          
-          <div className="text-sm font-mono text-muted-foreground min-w-[100px] text-center">
-            {formatTime(videoState.currentTime)} / {formatTime(videoState.duration)}
-          </div>
-        </div>
+      {mediaState.isLoaded && (
+        <PlaybackControls
+          mediaState={mediaState}
+          onTogglePlayPause={onTogglePlayPause}
+          onSeek={onSeek}
+        />
       )}
     </div>
   )
