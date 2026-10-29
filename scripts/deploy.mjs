@@ -1,18 +1,18 @@
-// Builds the client and publishes ONLY client/dist to the `deploy` branch.
+// Builds the client and publishes ONLY client/dist to the `release/production` branch.
 // Point Hostinger's Git tool at that branch so public_html contains just the built site
 // (index.html, assets/, en/, es/, fonts/, .htaccess) and none of the source or .git history.
 //
-//   npm run deploy            build + push to origin/deploy
+//   npm run deploy            build + push to origin/release/production
 //   npm run deploy -- --dry   build + prepare the commit, but don't push
 //
-// The deploy branch is rewritten on every run (force push) - it is a build artifact, not history.
+// The release/production branch is rewritten on every run (force push) - it is a build artifact, not history.
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const BRANCH = 'deploy'
+const BRANCH = 'release/production'
 const REMOTE = 'origin'
 const dryRun = process.argv.includes('--dry')
 
@@ -71,7 +71,7 @@ try {
     console.log(`[deploy] Pushing to ${REMOTE}/${BRANCH}...`)
     git(['push', '--force', remoteUrl, `${BRANCH}:${BRANCH}`], tmp)
     console.log(`\n[deploy] Done. ${REMOTE}/${BRANCH} now holds the build of ${sourceBranch}@${sourceCommit}.`)
-    console.log('[deploy] In Hostinger > Git, pull the "deploy" branch into public_html.')
+    console.log('[deploy] In Hostinger > Git, pull the "release/production" branch into public_html.')
   }
 } finally {
   rmSync(tmp, { recursive: true, force: true })
