@@ -49,7 +49,7 @@ export function RetimePanel({
         <div className="min-w-0">
           <p className="text-sm font-medium flex items-center gap-2">
             <Gauge className="w-4 h-4 text-primary" />
-            Retime from this line
+            Auto-time from this line
           </p>
           {preview ? (
             <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -106,7 +106,7 @@ export function RetimePanel({
         <div className="text-xs text-muted-foreground space-y-0.5">
           {preview && preview.retimedCount > 0 && (
             <p>
-              Retimes {preview.retimedCount} line{preview.retimedCount === 1 ? '' : 's'} · section ends at{' '}
+              Times {preview.retimedCount} line{preview.retimedCount === 1 ? '' : 's'} · section ends at{' '}
               {formatTime(preview.section.endTime)}
               {Math.abs(preview.sectionDelta) >= 0.01 && (
                 <> ({preview.sectionDelta > 0 ? '+' : ''}{preview.sectionDelta.toFixed(1)}s)</>

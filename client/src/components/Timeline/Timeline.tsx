@@ -1,13 +1,20 @@
 import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
-import { Pause, ZoomIn, ZoomOut, Gauge, Undo2 } from 'lucide-react'
+import { Pause, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
 import { TimelineLyricSection } from './TimelineLyricSection'
 import { RetimePanel } from './RetimePanel'
+import { TimelineWaveform } from './TimelineWaveform'
 import { formatTime, retimeFollowingSegments } from '@/utils'
 import type { RetimeOptions } from '@/utils'
+import type { Waveform } from '@/hooks'
+
+/** While scrubbing, pointer within this many px of an edge auto-scrolls the timeline */
+const SCRUB_EDGE_ZONE = 40
+/** Fastest auto-scroll while scrubbing, in px per frame */
+const SCRUB_MAX_SPEED = 30
 import type { LyricSegment, LyricSection, TimelineState } from '@/types'
 
 interface TimelineProps {
@@ -18,12 +25,14 @@ interface TimelineProps {
   currentTime: number
   duration: number
   timelineState: TimelineState
+  waveform: Waveform
   isPlaying?: boolean
   onSelectSegment: (id: string | null) => void
   onUpdateSegment: (id: string, updates: Partial<LyricSegment>) => void
   onInsertSpacer: (atTime: number, duration?: number) => void
   onSelectSection: (id: string | null) => void
   onUpdateSection: (id: string, updates: Partial<LyricSection>) => void
+  onAddSection: (startTime: number, endTime: number) => void
   onSeek: (time: number) => void
   onZoom: (zoom: number) => void
   onRetime: (id: string, options: RetimeOptions) => void
@@ -39,12 +48,14 @@ export function Timeline({
   currentTime,
   duration,
   timelineState,
+  waveform,
   isPlaying = false,
   onSelectSegment,
   onUpdateSegment,
   onInsertSpacer,
   onSelectSection,
   onUpdateSection,
+  onAddSection,
   onSeek,
   onZoom,
   onRetime,
@@ -100,18 +111,69 @@ export function Timeline({
     return pixels / pixelsPerSecond
   }, [pixelsPerSecond])
   
-  // Handle click on timeline track to seek
-  const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // Seek to the time under a pointer position
+  const seekToClientX = useCallback((clientX: number) => {
     const track = trackRef.current
     if (!track) return
-    
+
     const rect = track.getBoundingClientRect()
-    const x = e.clientX - rect.left + track.scrollLeft
+    const x = clientX - rect.left + track.scrollLeft
     const time = pixelsToTime(x)
-    
+
     // Allow seeking up to the effective duration (including segments past video end)
     onSeek(Math.max(0, Math.min(time, effectiveDuration)))
   }, [pixelsToTime, effectiveDuration, onSeek])
+
+  // Handle click on timeline track to seek
+  const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    seekToClientX(e.clientX)
+  }, [seekToClientX])
+
+  // Ruler scrubbing - capture the pointer so the drag keeps tracking outside the ruler
+  const scrubXRef = useRef<number | null>(null)
+  const scrubFrameRef = useRef(0)
+
+  const stopScrub = useCallback(() => {
+    scrubXRef.current = null
+    cancelAnimationFrame(scrubFrameRef.current)
+  }, [])
+
+  useEffect(() => stopScrub, [stopScrub])
+
+  const handleRulerPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    scrubXRef.current = e.clientX
+    seekToClientX(e.clientX)
+
+    // Holding near (or past) either edge scrolls the timeline, faster the further out
+    const viewport = scrollAreaRef.current?.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
+    const tick = () => {
+      const x = scrubXRef.current
+      if (x === null) return
+      if (viewport) {
+        const rect = viewport.getBoundingClientRect()
+        const intoRight = x - (rect.right - SCRUB_EDGE_ZONE)
+        const intoLeft = rect.left + SCRUB_EDGE_ZONE - x
+        const step = intoRight > 0 ? intoRight : intoLeft > 0 ? -intoLeft : 0
+        if (step !== 0) {
+          viewport.scrollLeft += Math.max(-SCRUB_MAX_SPEED, Math.min(SCRUB_MAX_SPEED, step * 0.3))
+          // The track moved under the pointer - keep the playhead under it
+          seekToClientX(x)
+        }
+      }
+      scrubFrameRef.current = requestAnimationFrame(tick)
+    }
+    cancelAnimationFrame(scrubFrameRef.current)
+    scrubFrameRef.current = requestAnimationFrame(tick)
+  }, [seekToClientX])
+
+  const handleRulerPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      scrubXRef.current = e.clientX
+      seekToClientX(e.clientX)
+    }
+  }, [seekToClientX])
   
   // Generate time markers - extend to cover all segments
   const timeMarkers = useMemo(() => {
@@ -182,6 +244,29 @@ export function Timeline({
     }
   }, [selectedSegmentId, segments, pixelsPerSecond])
   
+  // "Set start" acts on the selected section, or the one holding the selected line
+  const selectedSegment = segments.find(s => s.id === selectedSegmentId)
+  const targetSectionIndex = lyricSections.findIndex(section =>
+    section.id === selectedSectionId ||
+    (!!selectedSegment && selectedSegment.startTime >= section.startTime && selectedSegment.endTime <= section.endTime)
+  )
+  const targetSection = lyricSections[targetSectionIndex]
+  // Before any lyrics, "Set start" creates the first section from the playhead to the end
+  const createsSection = lyricSections.length === 0
+  // Same limits as dragging the left edge: not before the previous section, and at least 1s long
+  const startMin = targetSectionIndex > 0 ? lyricSections[targetSectionIndex - 1].endTime : 0
+  const canSetStart = createsSection
+    ? currentTime <= duration - 1
+    : !!targetSection && currentTime >= startMin && currentTime <= targetSection.endTime - 1
+
+  const handleSetStart = useCallback(() => {
+    if (createsSection) {
+      onAddSection(currentTime, duration)
+    } else if (targetSection) {
+      onUpdateSection(targetSection.id, { startTime: currentTime })
+    }
+  }, [createsSection, targetSection, currentTime, duration, onAddSection, onUpdateSection])
+
   if (duration === 0) {
     return (
       <div className="bg-timeline-bg rounded-lg p-4 text-center text-muted-foreground">
@@ -196,7 +281,25 @@ export function Timeline({
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Timeline</span>
-          <Button 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSetStart}
+            disabled={!canSetStart}
+            title={
+              createsSection
+                ? `Start the lyrics at ${formatTime(currentTime)}`
+                : !targetSection
+                  ? 'Select a lyric section first'
+                  : canSetStart
+                    ? `Start this section at ${formatTime(currentTime)}`
+                    : 'Move the playhead inside the section\'s allowed range'
+            }
+          >
+            <ArrowRightFromLine className="w-4 h-4 mr-1" />
+            Set start
+          </Button>
+          <Button
             variant="outline" 
             size="sm" 
             onClick={() => onInsertSpacer(currentTime)}
@@ -211,20 +314,20 @@ export function Timeline({
             size="sm"
             onClick={() => setRetimeOpen(open => !open)}
             disabled={segments.length === 0}
-            title="Retime the following lines from the selected line"
+            title="Time the following lines from the selected line"
           >
             <Gauge className="w-4 h-4 mr-1" />
-            Retime
+            Auto-time
           </Button>
           {canUndoRetime && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onUndoRetime}
-              title="Undo the last retime"
+              title="Undo the last auto-time"
             >
               <Undo2 className="w-4 h-4 mr-1" />
-              Undo retime
+              Undo auto-time
             </Button>
           )}
         </div>
@@ -256,12 +359,18 @@ export function Timeline({
       <ScrollArea className="w-full" ref={scrollAreaRef}>
         <div 
           ref={trackRef}
-          className="relative min-h-[160px] cursor-crosshair min-w-full"
+          className="relative min-h-[160px] min-w-full"
           style={{ width: totalWidth }}
           onClick={handleTrackClick}
         >
-          {/* Time Markers */}
-          <div className="absolute top-0 left-0 h-6 border-b border-border/50 min-w-full" style={{ width: totalWidth }}>
+          {/* Time Markers - press or drag to scrub the playhead */}
+          <div
+            className="absolute top-0 left-0 h-6 border-b border-border/50 min-w-full cursor-crosshair select-none touch-none"
+            style={{ width: totalWidth }}
+            onPointerDown={handleRulerPointerDown}
+            onPointerMove={handleRulerPointerMove}
+            onLostPointerCapture={stopScrub}
+          >
             {timeMarkers.map(time => (
               <div
                 key={time}
@@ -362,7 +471,12 @@ export function Timeline({
               )
             })}
           </div>
-          
+
+          {/* Waveform - read-only guide for placing edges; clicks fall through to seek */}
+          <div className="absolute top-[116px] left-0 h-[40px] bg-timeline-track/30 min-w-full pointer-events-none" style={{ width: totalWidth }}>
+            <TimelineWaveform waveform={waveform} pixelsPerSecond={pixelsPerSecond} width={totalWidth} />
+          </div>
+
           {/* Playhead */}
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-timeline-playhead z-10 pointer-events-none"

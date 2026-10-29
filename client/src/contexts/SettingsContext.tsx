@@ -1,8 +1,12 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+
+import { DEFAULT_EXPORT_FORMAT } from '@/utils'
+import type { ExportFileFormat } from '@/utils'
 
 interface Settings {
   transcodeOnUpload: boolean
-  // Future settings can be added here
+  /** Preferred export file format */
+  exportFormat: ExportFileFormat
 }
 
 interface SettingsContextType {
@@ -13,6 +17,18 @@ interface SettingsContextType {
 
 const defaultSettings: Settings = {
   transcodeOnUpload: false, // Default: no transcoding
+  exportFormat: DEFAULT_EXPORT_FORMAT,
+}
+
+const STORAGE_KEY = 'lyricdrop.settings.v1'
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings
+  } catch {
+    return defaultSettings
+  }
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null)
@@ -22,16 +38,25 @@ interface SettingsProviderProps {
 }
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [settings, setSettings] = useState<Settings>(defaultSettings)
-  
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+
+  // Remember choices across reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    } catch {
+      // Storage blocked - settings just won't survive a refresh
+    }
+  }, [settings])
+
   const updateSetting = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }))
   }, [])
-  
+
   const toggleTranscoding = useCallback(() => {
     setSettings(prev => ({ ...prev, transcodeOnUpload: !prev.transcodeOnUpload }))
   }, [])
-  
+
   return (
     <SettingsContext.Provider value={{ settings, updateSetting, toggleTranscoding }}>
       {children}

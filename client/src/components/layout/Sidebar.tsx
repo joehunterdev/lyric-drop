@@ -3,9 +3,16 @@ import { Settings, RefreshCw, X, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NewTabLink } from '@/components/ui/new-tab-link'
 import { Switch } from '@/components/ui/switch'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { CONTENT_PAGE_GROUPS } from './contentPages'
 import { useSettings } from '@/contexts'
-import { cn } from '@/utils'
+import { cn, canRecordFormat } from '@/utils'
+import type { ExportFileFormat } from '@/utils'
+
+const EXPORT_FORMAT_HINTS: Record<ExportFileFormat, string> = {
+  mp4: 'Works everywhere - Instagram, TikTok, X, phone galleries',
+  webm: 'Fine for YouTube / desktop uploads; phones and Instagram may reject it',
+}
 
 interface SidebarProps {
   isOpen: boolean
@@ -13,8 +20,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { settings, toggleTranscoding } = useSettings()
-  
+  const { settings, toggleTranscoding, updateSetting } = useSettings()
+  const exportFormatSupported = canRecordFormat(settings.exportFormat)
+
   return (
     <>
       {/* Backdrop */}
@@ -84,7 +92,44 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           
           {/* Divider */}
           <div className="border-t border-border" />
-          
+
+          {/* Export Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Export
+            </h3>
+
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">File format</span>
+              <SegmentedControl
+                label="Export file format"
+                value={settings.exportFormat}
+                onChange={value => updateSetting('exportFormat', value)}
+                options={[
+                  { value: 'mp4', label: 'MP4' },
+                  { value: 'webm', label: 'WebM' },
+                ]}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {EXPORT_FORMAT_HINTS[settings.exportFormat]}
+            </p>
+
+            {!exportFormatSupported && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <RefreshCw className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-500">
+                  This browser can't record {settings.exportFormat.toUpperCase()}, so exports
+                  will fall back to {settings.exportFormat === 'mp4' ? 'WebM' : 'MP4'}.
+                  {settings.exportFormat === 'mp4' && ' Use the Converter tab to turn it into MP4, or export from Chrome, Edge or Safari.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
           {/* Info Section */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">

@@ -251,7 +251,10 @@ export function LyricEditor({
               const sectionSegments = getSegmentsInSection(section)
               const isExpanded = expandedSections.has(section.id)
               const isSelected = selectedSectionId === section.id
-              const isNewSection = isAddingSection && section === lyricSections[lyricSections.length - 1]
+              // A selected section with no lyrics yet opens straight to the paste box
+              // (e.g. one just created by "Set start" on the timeline)
+              const isNewSection = (isAddingSection && section === lyricSections[lyricSections.length - 1]) ||
+                (isSelected && sectionSegments.length === 0)
               
               return (
                 <div
@@ -330,6 +333,8 @@ export function LyricEditor({
                                   setIsAddingSection(false)
                                   setImportingSectionId(null)
                                   setLyricsInput('')
+                                  // Deselect too, or a selected empty section keeps the paste box open
+                                  onSelectSection(null)
                                 }}
                               >
                                 Cancel

@@ -9,7 +9,9 @@ import {
   EXPORT_FRAMERATE,
   OUTPUT_FORMATS,
   ensureFontLoaded,
+  pickExportMimeType,
 } from '@/utils'
+import type { ExportFileFormat } from '@/utils'
 import { ExportStatus } from '@/types/enums'
 import type { ImageFit, OutputFormat } from '@/types/enums'
 import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox, LyricStyle } from '@/types'
@@ -32,6 +34,8 @@ interface UseCanvasExportOptions {
   mediaRef: React.RefObject<HTMLMediaElement | null>
   segments: LyricSegment[]
   source: ExportSource
+  /** Preferred file format - falls back to the other if the browser can't record it */
+  fileFormat: ExportFileFormat
 }
 
 interface AudioGraph {
@@ -79,6 +83,7 @@ export function useCanvasExport({
   mediaRef,
   segments,
   source,
+  fileFormat,
 }: UseCanvasExportOptions): UseCanvasExportReturn {
   const [progress, setProgress] = useState<ExportProgress>({
     status: ExportStatus.IDLE,
@@ -206,21 +211,20 @@ export function useCanvasExport({
         audioTracks.forEach(track => stream.addTrack(track))
       }
 
-      // Determine best supported format
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-          ? 'video/webm;codecs=vp8'
-          : 'video/webm'
+      // Best supported format - empty lets the browser pick its default
+      const requestedType = pickExportMimeType(fileFormat)
 
-      logger.info('Using MIME type:', mimeType)
+      logger.info('Requested MIME type:', requestedType || '(browser default)')
       logger.info('Export settings:', { bitrate: EXPORT_BITRATE, framerate: EXPORT_FRAMERATE })
 
       const chunks: Blob[] = []
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
+        ...(requestedType && { mimeType: requestedType }),
         videoBitsPerSecond: EXPORT_BITRATE,
       })
+      // What the recorder actually writes, which decides the file extension
+      const mimeType = mediaRecorder.mimeType || requestedType || 'video/webm'
+      const extension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'
       mediaRecorderRef.current = mediaRecorder
 
       mediaRecorder.ondataavailable = (e) => {
@@ -252,8 +256,8 @@ export function useCanvasExport({
         const a = document.createElement('a')
         a.href = url
         a.download = source.kind === 'image'
-          ? `lyric-drop-${source.format}-${Date.now()}.webm`
-          : `lyric-overlay-${Date.now()}.webm`
+          ? `lyric-drop-${source.format}-${Date.now()}.${extension}`
+          : `lyric-overlay-${Date.now()}.${extension}`
         a.style.display = 'none'
         document.body.appendChild(a)
         
@@ -364,7 +368,7 @@ export function useCanvasExport({
         message: error instanceof Error ? error.message : 'Export failed',
       })
     }
-  }, [mediaRef, segments, source])
+  }, [mediaRef, segments, source, fileFormat])
 
   /**
    * Cancel ongoing export

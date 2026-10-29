@@ -35,6 +35,9 @@ const CUSTOM_FONT_PREFIX = 'LD Custom - '
 
 export const ALLOWED_FONT_EXTENSIONS = ['.ttf', '.otf', '.woff', '.woff2']
 
+/** Real fonts are well under this - anything bigger isn't worth keeping in IndexedDB */
+const MAX_FONT_SIZE = 10 * 1024 * 1024
+
 export function findFontOption(family: string): FontOption | undefined {
   return FONT_OPTIONS.find(font => font.family === family)
 }
@@ -120,6 +123,9 @@ export async function addCustomFont(file: File): Promise<CustomFont> {
   const ext = '.' + file.name.split('.').pop()?.toLowerCase()
   if (!ALLOWED_FONT_EXTENSIONS.includes(ext)) {
     throw new Error(`Only ${ALLOWED_FONT_EXTENSIONS.join(', ')} font files are supported`)
+  }
+  if (file.size > MAX_FONT_SIZE) {
+    throw new Error('Font file too large. Maximum size is 10 MB')
   }
 
   const name = file.name.replace(/\.[^/.]+$/, '')

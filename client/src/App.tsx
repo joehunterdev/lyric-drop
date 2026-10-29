@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Settings, FileVideo, ImageIcon, FileText, Palette } from 'lucide-react'
 
-import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport } from '@/hooks'
+import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform } from '@/hooks'
 import type { ExportSource } from '@/hooks/useCanvasExport'
-import { SettingsProvider, OverlayProvider, useOverlay } from '@/contexts'
+import { SettingsProvider, OverlayProvider, useOverlay, useSettings } from '@/contexts'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { ImageStage } from '@/components/ImageStage'
 import { Timeline } from '@/components/Timeline'
@@ -15,7 +15,8 @@ import { VideoConverter } from '@/components/VideoConverter'
 import { Button } from '@/components/ui/button'
 import { NewTabLink } from '@/components/ui/new-tab-link'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { SourceMode, OutputFormat, ImageFit } from '@/types'
+import { SourceMode, OutputFormat, ImageFit, ExportStatus } from '@/types'
+import { isImageFile, validateImageFile, validateVideoFile } from '@/utils'
 import './index.css'
 
 /** Shown in the paused preview when no lyric is selected or on screen */
@@ -30,6 +31,7 @@ function AppContent() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(OutputFormat.REEL)
   const [imageFit, setImageFit] = useState<ImageFit>(ImageFit.COVER)
   const { style, lyricBoxes } = useOverlay()
+  const { settings } = useSettings()
   const lyricBox = lyricBoxes[outputFormat]
 
   const {
@@ -43,6 +45,7 @@ function AppContent() {
   } = useMediaPlayer()
 
   const { image, loadImage, clearImage } = useImageBackground()
+  const waveform = useWaveform(mediaState.file)
 
   // Switching source clears the loaded media; lyrics are kept
   const changeSourceMode = useCallback((mode: SourceMode) => {
@@ -51,6 +54,21 @@ function AppContent() {
     clearImage()
     setSourceMode(mode)
   }, [sourceMode, resetMedia, clearImage])
+
+  // The empty stage takes an image or a video - the file decides the mode.
+  // Validate before switching so a bad file doesn't clear what's loaded.
+  const loadStageFile = useCallback(async (file: File) => {
+    const isImage = isImageFile(file)
+    const validation = isImage ? validateImageFile(file) : validateVideoFile(file)
+    if (!validation.valid) {
+      throw new Error(isImage
+        ? validation.error
+        : `${validation.error}\n\nPlease convert your video using HandBrake (free) or an online converter like CloudConvert.`)
+    }
+
+    changeSourceMode(isImage ? SourceMode.IMAGE : SourceMode.VIDEO)
+    await (isImage ? loadImage(file) : loadVideo(file))
+  }, [changeSourceMode, loadImage, loadVideo])
 
   const exportSource = useMemo<ExportSource>(() => (
     sourceMode === SourceMode.IMAGE
@@ -88,25 +106,51 @@ function AppContent() {
     mediaRef,
     segments,
     source: exportSource,
+    fileFormat: settings.exportFormat,
   })
   const canExport = mediaState.isLoaded && segments.length > 0 &&
     (exportSource.kind === 'video' || !!exportSource.image)
+  const isExporting = exportProgress.status === ExportStatus.PREPARING ||
+    exportProgress.status === ExportStatus.PROCESSING
+
+  // Spacebar plays/pauses - except while typing or on a focused control (space
+  // already activates those), and never mid-export since export drives playback
+  useEffect(() => {
+    if (currentView !== 'editor' || isExporting) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, button, a, [contenteditable="true"], [role="slider"], [role="tab"], [role="menuitem"]')) return
+      e.preventDefault()
+      togglePlayPause()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentView, isExporting, togglePlayPause])
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="border-b border-border px-4 py-3 bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 shrink-0">
-            <img 
-              src="/logo.png" 
-              alt="Joe Hunter" 
-              className="h-8 w-auto"
+          <button
+            type="button"
+            onClick={() => setCurrentView('editor')}
+            className="flex items-center gap-2.5 shrink-0 rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            aria-label="Lyric Drop home"
+          >
+            <img
+              src="/logo.png"
+              alt=""
+              aria-hidden="true"
+              className="h-7 w-7 object-contain"
             />
-            <h1 className="text-lg font-semibold text-primary leading-8">
-              Lyric Drop
-            </h1>
-          </div>
+            <span className="text-xl font-bold tracking-tight text-foreground">
+              <span className="text-secondary">Lyric</span>Drop
+            </span>
+          </button>
           {/* Export progress - only takes space while exporting */}
           {currentView === 'editor' && (
             <ExportProgress
@@ -195,6 +239,7 @@ function AppContent() {
                     onFormatChange={setOutputFormat}
                     onFitChange={setImageFit}
                     onLoadImage={loadImage}
+                    onLoadStageFile={loadStageFile}
                     onLoadAudio={loadAudio}
                     onTogglePlayPause={togglePlayPause}
                     onSeek={seek}
@@ -204,7 +249,7 @@ function AppContent() {
                     mediaRef={mediaRef}
                     mediaState={mediaState}
                     activeSegment={activeSegment}
-                    onLoadVideo={loadVideo}
+                    onLoadFile={loadStageFile}
                     onTogglePlayPause={togglePlayPause}
                     onSeek={seek}
                   />
@@ -212,7 +257,7 @@ function AppContent() {
               </div>
 
               {/* Lyrics / Style - Right sidebar; capped height + internal scroll on desktop */}
-              <div className="lg:col-span-1 min-h-[400px] lg:max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="lg:col-span-1 min-h-[400px] lg:h-[80vh] overflow-hidden flex flex-col">
                 <Tabs defaultValue="lyrics" className="flex-1 min-h-0">
                   <TabsList className="w-full">
                     <TabsTrigger value="lyrics">
@@ -258,12 +303,14 @@ function AppContent() {
                 currentTime={mediaState.currentTime}
                 duration={mediaState.duration}
                 timelineState={timelineState}
+                waveform={waveform}
                 isPlaying={mediaState.isPlaying}
                 onSelectSegment={selectSegment}
                 onUpdateSegment={updateSegment}
                 onInsertSpacer={insertSpacer}
                 onSelectSection={selectLyricSection}
                 onUpdateSection={updateLyricSection}
+                onAddSection={addLyricSection}
                 onSeek={seek}
                 onZoom={setZoom}
                 onRetime={retimeFromSegment}

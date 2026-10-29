@@ -22,8 +22,43 @@ export const EXPORT_FRAMERATE = parseInt(
   10
 )
 
-/** Export format */
-export const EXPORT_FORMAT = import.meta.env.VITE_EXPORT_FORMAT || 'webm'
+export type ExportFileFormat = 'mp4' | 'webm'
+
+/** Default export container - MP4 is what phones and every social platform take */
+export const DEFAULT_EXPORT_FORMAT: ExportFileFormat =
+  import.meta.env.VITE_EXPORT_FORMAT === 'webm' ? 'webm' : 'mp4'
+
+/**
+ * Recorder types per format, best first. MP4 asks for AAC audio explicitly -
+ * Instagram is fussy about Opus. Plain 'video/mp4' is a last resort for Safari.
+ */
+const EXPORT_MIME_TYPES: Record<ExportFileFormat, string[]> = {
+  mp4: [
+    'video/mp4;codecs=avc1.640028,mp4a.40.2',
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4',
+  ],
+  webm: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
+}
+
+/**
+ * Whether this browser can record the given format directly
+ */
+export function canRecordFormat(format: ExportFileFormat): boolean {
+  return typeof MediaRecorder !== 'undefined' &&
+    EXPORT_MIME_TYPES[format].some(type => MediaRecorder.isTypeSupported(type))
+}
+
+/**
+ * Recorder type for an export - the preferred format if the browser can record
+ * it, otherwise the other one. Empty means let the browser pick.
+ */
+export function pickExportMimeType(preferred: ExportFileFormat): string {
+  const fallback: ExportFileFormat = preferred === 'mp4' ? 'webm' : 'mp4'
+  return [...EXPORT_MIME_TYPES[preferred], ...EXPORT_MIME_TYPES[fallback]]
+    .find(type => MediaRecorder.isTypeSupported(type)) ?? ''
+}
 
 // ===========================================
 // File Upload Settings
@@ -211,6 +246,15 @@ function validateFile(
  */
 export function validateImageFile(file: File): { valid: boolean; error?: string } {
   return validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS)
+}
+
+/**
+ * Whether a file looks like an image (by MIME type or extension) - used to
+ * route a single upload to image or video mode
+ */
+export function isImageFile(file: File): boolean {
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+  return file.type.startsWith('image/') || ALLOWED_IMAGE_EXTENSIONS.includes(ext)
 }
 
 /**

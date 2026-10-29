@@ -3,10 +3,11 @@ import { Upload, FileVideo } from 'lucide-react'
 
 import { PlaybackControls } from './PlaybackControls'
 import {
-  validateVideoFile,
   formatMaxFileSize,
   ALLOWED_VIDEO_EXTENSIONS,
   ALLOWED_VIDEO_TYPES,
+  ALLOWED_IMAGE_EXTENSIONS,
+  ALLOWED_IMAGE_TYPES,
 } from '@/utils'
 import type { MediaState, LyricSegment } from '@/types'
 
@@ -14,7 +15,8 @@ interface VideoPlayerProps {
   mediaRef: React.RefObject<HTMLMediaElement | null>
   mediaState: MediaState
   activeSegment: LyricSegment | null
-  onLoadVideo: (file: File) => Promise<void>
+  /** Takes a video or an image - an image switches to image mode */
+  onLoadFile: (file: File) => Promise<void>
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
 }
@@ -23,7 +25,7 @@ export function VideoPlayer({
   mediaRef,
   mediaState,
   activeSegment,
-  onLoadVideo,
+  onLoadFile,
   onTogglePlayPause,
   onSeek,
 }: VideoPlayerProps) {
@@ -36,16 +38,13 @@ export function VideoPlayer({
     e.target.value = ''
     
     if (!file) return
-    
-    // Validate file using config
-    const validation = validateVideoFile(file)
-    if (!validation.valid) {
-      alert(`${validation.error}\n\nPlease convert your video using HandBrake (free) or an online converter like CloudConvert.`)
-      return
+
+    try {
+      await onLoadFile(file)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to load file')
     }
-    
-    await onLoadVideo(file)
-  }, [onLoadVideo])
+  }, [onLoadFile])
   
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click()
@@ -79,10 +78,10 @@ export function VideoPlayer({
             onClick={handleUploadClick}
           >
             <Upload className="w-12 h-12 mb-4" />
-            <p className="text-lg font-medium">Click to upload video</p>
+            <p className="text-lg font-medium">Click to upload video or image</p>
             <p className="text-sm text-muted-foreground mt-1">
               <FileVideo className="w-3 h-3 inline mr-1" />
-              {ALLOWED_VIDEO_EXTENSIONS.join(', ')} only (max {formatMaxFileSize()})
+              {[...ALLOWED_VIDEO_EXTENSIONS, ...ALLOWED_IMAGE_EXTENSIONS].join(', ')} (max {formatMaxFileSize()})
             </p>
           </div>
         )}
@@ -90,7 +89,10 @@ export function VideoPlayer({
         <input
           ref={fileInputRef}
           type="file"
-          accept={[...ALLOWED_VIDEO_TYPES, ...ALLOWED_VIDEO_EXTENSIONS].join(',')}
+          accept={[
+            ...ALLOWED_VIDEO_TYPES, ...ALLOWED_VIDEO_EXTENSIONS,
+            ...ALLOWED_IMAGE_TYPES, ...ALLOWED_IMAGE_EXTENSIONS,
+          ].join(',')}
           className="hidden"
           onChange={handleFileSelect}
         />

@@ -25,6 +25,8 @@ import {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_AUDIO_EXTENSIONS,
   ALLOWED_AUDIO_TYPES,
+  ALLOWED_VIDEO_EXTENSIONS,
+  ALLOWED_VIDEO_TYPES,
 } from '@/utils'
 import { ImageFit, OutputFormat } from '@/types'
 import type { MediaState, LyricSegment, ImageBackground, LyricBox } from '@/types'
@@ -41,6 +43,8 @@ interface ImageStageProps {
   onFormatChange: (format: OutputFormat) => void
   onFitChange: (fit: ImageFit) => void
   onLoadImage: (file: File) => Promise<void>
+  /** Empty-stage upload: takes an image or a video - a video switches to video mode */
+  onLoadStageFile: (file: File) => Promise<void>
   onLoadAudio: (file: File) => Promise<void>
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
@@ -66,11 +70,13 @@ export function ImageStage({
   onFormatChange,
   onFitChange,
   onLoadImage,
+  onLoadStageFile,
   onLoadAudio,
   onTogglePlayPause,
   onSeek,
 }: ImageStageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const stageInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
 
@@ -227,13 +233,13 @@ export function ImageStage({
         {!image && (
           <div
             className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-card/50 transition-colors"
-            onClick={() => imageInputRef.current?.click()}
+            onClick={() => stageInputRef.current?.click()}
           >
             <Upload className="w-12 h-12 mb-4" />
-            <p className="text-lg font-medium">Click to upload image</p>
+            <p className="text-lg font-medium">Click to upload image or video</p>
             <p className="text-sm text-muted-foreground mt-1">
               <ImageIcon className="w-3 h-3 inline mr-1" />
-              {ALLOWED_IMAGE_EXTENSIONS.join(', ')} (max {formatMaxFileSize()})
+              {[...ALLOWED_IMAGE_EXTENSIONS, ...ALLOWED_VIDEO_EXTENSIONS].join(', ')} (max {formatMaxFileSize()})
             </p>
           </div>
         )}
@@ -261,6 +267,16 @@ export function ImageStage({
         </Button>
       </div>
 
+      <input
+        ref={stageInputRef}
+        type="file"
+        accept={[
+          ...ALLOWED_IMAGE_TYPES, ...ALLOWED_IMAGE_EXTENSIONS,
+          ...ALLOWED_VIDEO_TYPES, ...ALLOWED_VIDEO_EXTENSIONS,
+        ].join(',')}
+        className="hidden"
+        onChange={handleFileSelect(onLoadStageFile)}
+      />
       <input
         ref={imageInputRef}
         type="file"
