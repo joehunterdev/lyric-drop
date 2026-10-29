@@ -1,0 +1,63 @@
+# Lyric Drop - Apache config (deployed alongside index.html)
+# The app is a single page (views are state, not routes), so there is deliberately no
+# SPA fallback rewrite: unknown URLs return a real 404 instead of a soft-404 for search engines.
+
+# --- Force HTTPS -------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# --- Security headers --------------------------------------------------------
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+
+  # Content Security Policy (keep on ONE line - `npm run preview` reads it from here to test it)
+  #  script-src  : blob: + wasm-unsafe-eval are for FFmpeg (WASM) in the Converter
+  #  style-src   : 'unsafe-inline' is needed for React/Radix/sonner inline style attributes
+  #  connect-src : unpkg.com serves the pinned FFmpeg core files on demand (Converter only)
+  #  img/media   : blob:/data: for the user's own uploaded files and canvas output
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' blob: https://unpkg.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+</IfModule>
+
+# Never list directory contents
+Options -Indexes
+
+# Web app manifest MIME type
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
+# Block dotfiles (.env, .git, ...) but keep /.well-known reachable
+<IfModule mod_rewrite.c>
+  RewriteCond %{REQUEST_URI} !^/\.well-known/ [NC]
+  RewriteRule (^|/)\.(?!well-known) - [F,L]
+</IfModule>
+
+# --- Compression -------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript text/javascript application/json image/svg+xml application/wasm
+</IfModule>
+
+# --- Caching -----------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 hour"
+  # index.html and content pages: always revalidate so a new deploy shows straight away
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/xml "access plus 1 day"
+  # Vite output is content-hashed, so JS/CSS can be cached for a year
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/svg+xml "access plus 1 month"
+  ExpiresByType image/webp "access plus 1 month"
+  ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
