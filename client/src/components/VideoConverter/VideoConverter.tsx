@@ -12,8 +12,12 @@ type OutputFormat = 'mp4' | 'webm' | 'gif'
 type QualityPreset = 'high' | 'medium' | 'low'
 type ConversionMethod = 'browser' | 'server'
 
-const CONVERTER_ENABLED = import.meta.env.VITE_CONVERTER_SERVER_ENABLED === 'true'
-const CONVERTER_URL = import.meta.env.VITE_CONVERTER_SERVER_URL || 'http://localhost:3001'
+// Local-server conversion is a dev tool. `import.meta.env.DEV` is a compile-time constant, so
+// production builds drop this feature (and the localhost URL) entirely, whatever the .env says.
+const CONVERTER_ENABLED = import.meta.env.DEV && import.meta.env.VITE_CONVERTER_SERVER_ENABLED === 'true'
+const CONVERTER_URL = import.meta.env.DEV
+  ? import.meta.env.VITE_CONVERTER_SERVER_URL || 'http://localhost:3001'
+  : ''
 
 interface FormatOption {
   value: OutputFormat

@@ -472,9 +472,9 @@ function AppContent() {
       {/* Footer */}
       <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          <span className="text-primary font-semibold">Lyric Drop</span> v0.2.0 • Built by{' '}
+          <span className="text-primary font-semibold">Lyric Drop</span> v0.2.8 • Built by{' '}
           <NewTabLink
-            href="https://joehunter.dev"
+            href="https://joehunter.es"
             className="text-primary hover:text-primary/80 transition-colors"
           >
             Joe Hunter

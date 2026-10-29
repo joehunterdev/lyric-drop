@@ -6,7 +6,7 @@ export interface FontOption {
   /** Weights the font actually ships - others are faked by the browser */
   weights: number[]
   category: 'display' | 'sans' | 'serif' | 'handwriting' | 'mono'
-  source: 'google' | 'system'
+  source: 'bundled' | 'system'
 }
 
 /**
@@ -14,17 +14,17 @@ export interface FontOption {
  */
 export const FONT_OPTIONS: FontOption[] = [
   { family: 'Arial', weights: [400, 700], category: 'sans', source: 'system' },
-  { family: 'Bebas Neue', weights: [400], category: 'display', source: 'google' },
-  { family: 'Anton', weights: [400], category: 'display', source: 'google' },
-  { family: 'Oswald', weights: [400, 600, 700], category: 'display', source: 'google' },
-  { family: 'Archivo Black', weights: [400], category: 'display', source: 'google' },
-  { family: 'Bangers', weights: [400], category: 'display', source: 'google' },
-  { family: 'Montserrat', weights: [400, 600, 700, 900], category: 'sans', source: 'google' },
-  { family: 'Inter', weights: [400, 600, 700, 900], category: 'sans', source: 'google' },
-  { family: 'Titillium Web', weights: [400, 600, 700], category: 'sans', source: 'google' },
-  { family: 'Playfair Display', weights: [400, 700, 900], category: 'serif', source: 'google' },
-  { family: 'Permanent Marker', weights: [400], category: 'handwriting', source: 'google' },
-  { family: 'Space Mono', weights: [400, 700], category: 'mono', source: 'google' },
+  { family: 'Bebas Neue', weights: [400], category: 'display', source: 'bundled' },
+  { family: 'Anton', weights: [400], category: 'display', source: 'bundled' },
+  { family: 'Oswald', weights: [400, 600, 700], category: 'display', source: 'bundled' },
+  { family: 'Archivo Black', weights: [400], category: 'display', source: 'bundled' },
+  { family: 'Bangers', weights: [400], category: 'display', source: 'bundled' },
+  { family: 'Montserrat', weights: [400, 600, 700, 900], category: 'sans', source: 'bundled' },
+  { family: 'Inter', weights: [400, 600, 700, 900], category: 'sans', source: 'bundled' },
+  { family: 'Titillium Web', weights: [400, 600, 700], category: 'sans', source: 'bundled' },
+  { family: 'Playfair Display', weights: [400, 700, 900], category: 'serif', source: 'bundled' },
+  { family: 'Permanent Marker', weights: [400], category: 'handwriting', source: 'bundled' },
+  { family: 'Space Mono', weights: [400, 700], category: 'mono', source: 'bundled' },
 ]
 
 /** Weights offered in the UI */
@@ -53,17 +53,62 @@ export function cssFont(weight: number, sizePx: number, family: string): string 
 // Loading
 // ===========================================
 
-const injectedStylesheets = new Set<string>()
+/**
+ * Bundled fonts are self-hosted (Fontsource, latin subset). Each loader pulls in only that font's
+ * @font-face CSS the first time the font is used, so unused fonts cost nothing. Keep the weights
+ * here in step with FONT_OPTIONS above.
+ */
+const FONT_LOADERS: Record<string, () => Promise<unknown>> = {
+  'Bebas Neue': () => import('@fontsource/bebas-neue/latin-400.css'),
+  'Anton': () => import('@fontsource/anton/latin-400.css'),
+  'Oswald': () => Promise.all([
+    import('@fontsource/oswald/latin-400.css'),
+    import('@fontsource/oswald/latin-600.css'),
+    import('@fontsource/oswald/latin-700.css'),
+  ]),
+  'Archivo Black': () => import('@fontsource/archivo-black/latin-400.css'),
+  'Bangers': () => import('@fontsource/bangers/latin-400.css'),
+  'Montserrat': () => Promise.all([
+    import('@fontsource/montserrat/latin-400.css'),
+    import('@fontsource/montserrat/latin-600.css'),
+    import('@fontsource/montserrat/latin-700.css'),
+    import('@fontsource/montserrat/latin-900.css'),
+  ]),
+  'Inter': () => Promise.all([
+    import('@fontsource/inter/latin-400.css'),
+    import('@fontsource/inter/latin-600.css'),
+    import('@fontsource/inter/latin-700.css'),
+    import('@fontsource/inter/latin-900.css'),
+  ]),
+  'Titillium Web': () => Promise.all([
+    import('@fontsource/titillium-web/latin-400.css'),
+    import('@fontsource/titillium-web/latin-600.css'),
+    import('@fontsource/titillium-web/latin-700.css'),
+  ]),
+  'Playfair Display': () => Promise.all([
+    import('@fontsource/playfair-display/latin-400.css'),
+    import('@fontsource/playfair-display/latin-700.css'),
+    import('@fontsource/playfair-display/latin-900.css'),
+  ]),
+  'Permanent Marker': () => import('@fontsource/permanent-marker/latin-400.css'),
+  'Space Mono': () => Promise.all([
+    import('@fontsource/space-mono/latin-400.css'),
+    import('@fontsource/space-mono/latin-700.css'),
+  ]),
+}
 
-function injectGoogleStylesheet(font: FontOption): void {
-  if (injectedStylesheets.has(font.family)) return
-  injectedStylesheets.add(font.family)
+const requestedFonts = new Map<string, Promise<unknown>>()
 
-  const family = font.family.replace(/ /g, '+')
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = `https://fonts.googleapis.com/css2?family=${family}:wght@${font.weights.join(';')}&display=swap`
-  document.head.appendChild(link)
+function loadBundledFontCss(family: string): Promise<unknown> {
+  let request = requestedFonts.get(family)
+  if (!request) {
+    request = (FONT_LOADERS[family]?.() ?? Promise.resolve()).catch(error => {
+      requestedFonts.delete(family)
+      throw error
+    })
+    requestedFonts.set(family, request)
+  }
+  return request
 }
 
 /**
@@ -74,7 +119,14 @@ function injectGoogleStylesheet(font: FontOption): void {
 export async function ensureFontLoaded(family: string, weight: number): Promise<boolean> {
   const font = findFontOption(family)
   if (font?.source === 'system') return true
-  if (font?.source === 'google') injectGoogleStylesheet(font)
+  if (font?.source === 'bundled') {
+    try {
+      await loadBundledFontCss(family)
+    } catch (error) {
+      logger.error('Font stylesheet failed to load:', family, error)
+      return false
+    }
+  }
 
   const descriptor = cssFont(weight, 48, family)
   try {
