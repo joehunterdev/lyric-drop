@@ -100,8 +100,8 @@ export function TimelineLyricSection({
       ref={sectionRef}
       className={cn(
         'absolute top-1 bottom-1 rounded-md cursor-pointer transition-colors',
-        'bg-emerald-600/30 border-2 border-emerald-500/50 hover:border-emerald-400',
-        isSelected && 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-timeline-bg border-emerald-400',
+        'bg-primary/20 border-2 border-primary/50 hover:border-primary',
+        isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-timeline-bg border-primary',
         isDragging && 'opacity-80'
       )}
       style={{
@@ -111,7 +111,7 @@ export function TimelineLyricSection({
       onClick={handleClick}
     >
       {/* Section label */}
-      <div className="px-2 py-0.5 text-xs text-emerald-200 truncate select-none h-full flex items-center">
+      <div className="px-2 py-0.5 text-xs text-primary truncate select-none h-full flex items-center">
         Lyric Section
       </div>
       
@@ -120,8 +120,8 @@ export function TimelineLyricSection({
         <div
           className={cn(
             'absolute left-0 top-0 bottom-0 cursor-ew-resize touch-none',
-            'bg-emerald-500/50 hover:bg-emerald-500/80 rounded-l transition-colors',
-            dragType === 'left' && 'bg-emerald-500'
+            'bg-primary/50 hover:bg-primary/80 rounded-l transition-colors',
+            dragType === 'left' && 'bg-primary'
           )}
           style={{ width: HANDLE_WIDTH }}
           onPointerDown={(e) => handlePointerDown(e, 'left')}
@@ -136,8 +136,8 @@ export function TimelineLyricSection({
         <div
           className={cn(
             'absolute right-0 top-0 bottom-0 cursor-ew-resize touch-none',
-            'bg-emerald-500/50 hover:bg-emerald-500/80 rounded-r transition-colors',
-            dragType === 'right' && 'bg-emerald-500'
+            'bg-primary/50 hover:bg-primary/80 rounded-r transition-colors',
+            dragType === 'right' && 'bg-primary'
           )}
           style={{ width: HANDLE_WIDTH }}
           onPointerDown={(e) => handlePointerDown(e, 'right')}

@@ -17,6 +17,7 @@ import { DockedSheet, type SheetSnap } from '@/components/ui/docked-sheet'
 import { NewTabLink } from '@/components/ui/new-tab-link'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SourceMode, OutputFormat, ImageFit, ExportStatus, StageSize } from '@/types'
+import type { TrimRange } from '@/types'
 import { isImageFile, validateImageFile, validateVideoFile } from '@/utils'
 import './index.css'
 
@@ -54,6 +55,23 @@ function AppContent() {
 
   const { image, loadImage, clearImage } = useImageBackground()
   const waveform = useWaveform(mediaState.file)
+
+  // Export range. Remembers which media it was set for, so loading another file starts
+  // from its full length without needing an effect to reset it.
+  const [trimState, setTrimState] = useState<{ url: string | null; range: TrimRange }>({
+    url: null,
+    range: { start: 0, end: 0 },
+  })
+  const trim = useMemo<TrimRange>(() => {
+    const full = { start: 0, end: mediaState.duration }
+    if (trimState.url !== mediaState.url) return full
+    const start = Math.min(trimState.range.start, mediaState.duration)
+    return { start, end: Math.min(trimState.range.end, mediaState.duration) || full.end }
+  }, [trimState, mediaState.url, mediaState.duration])
+  const handleTrimChange = useCallback(
+    (range: TrimRange) => setTrimState({ url: mediaState.url, range }),
+    [mediaState.url]
+  )
 
   // Switching source clears the loaded media; lyrics are kept
   const changeSourceMode = useCallback((mode: SourceMode) => {
@@ -115,6 +133,7 @@ function AppContent() {
     segments,
     source: exportSource,
     fileFormat: settings.exportFormat,
+    trim,
   })
   const canExport = mediaState.isLoaded && segments.length > 0 &&
     (exportSource.kind === 'video' || !!exportSource.image)
@@ -202,7 +221,7 @@ function AppContent() {
               aria-hidden="true"
               className="h-7 w-7 object-contain"
             />
-            <span className="text-xl font-bold tracking-tight text-foreground">
+            <span className="text-xl font-extrabold tracking-tight text-foreground">
               <span className="text-secondary">Lyric</span>Drop
             </span>
           </button>
@@ -394,6 +413,8 @@ function AppContent() {
                   onToolsOpenChange={setTimelineToolsOpen}
                   stageSize={stageSize}
                   onStageSizeChange={setStageSize}
+                  trim={trim}
+                  onTrimChange={handleTrimChange}
                   onMenuSlotChange={setMenuSlot}
                 />
               </div>

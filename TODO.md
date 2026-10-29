@@ -74,6 +74,8 @@
 - Key board controls 
   - Spacebar to stop
 - how does the upload font work does this imply securty vulne
+
+- Be able to trim the entire video legnth start to finish
 ---
 
 ## Backlog

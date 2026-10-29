@@ -14,7 +14,7 @@ import {
 import type { ExportFileFormat } from '@/utils'
 import { ExportStatus } from '@/types/enums'
 import type { ImageFit, OutputFormat } from '@/types/enums'
-import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox, LyricStyle } from '@/types'
+import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox, LyricStyle, TrimRange } from '@/types'
 
 /**
  * What the export draws behind the lyrics
@@ -36,6 +36,8 @@ interface UseCanvasExportOptions {
   source: ExportSource
   /** Preferred file format - falls back to the other if the browser can't record it */
   fileFormat: ExportFileFormat
+  /** Only this part of the media is recorded; the whole thing when omitted */
+  trim?: TrimRange | null
 }
 
 interface AudioGraph {
@@ -84,6 +86,7 @@ export function useCanvasExport({
   segments,
   source,
   fileFormat,
+  trim,
 }: UseCanvasExportOptions): UseCanvasExportReturn {
   const [progress, setProgress] = useState<ExportProgress>({
     status: ExportStatus.IDLE,
@@ -165,6 +168,14 @@ export function useCanvasExport({
 
       if (!width || !height || !duration) {
         throw new Error('Media not properly loaded - missing dimensions or duration')
+      }
+
+      // Only the trimmed part is recorded
+      const rangeStart = Math.max(0, Math.min(trim?.start ?? 0, duration))
+      const rangeEnd = Math.max(rangeStart, Math.min(trim?.end ?? duration, duration))
+      const rangeLength = rangeEnd - rangeStart
+      if (rangeLength <= 0) {
+        throw new Error('The trimmed range is empty')
       }
 
       if (background.kind === 'video') {
@@ -309,8 +320,19 @@ export function useCanvasExport({
         message: 'Recording... 0%',
       })
 
-      // Rewind media and play
-      media.currentTime = 0
+      // Jump to the start of the trimmed range (wait for the seek so no stale frame is recorded)
+      if (Math.abs(media.currentTime - rangeStart) > 0.01) {
+        await new Promise<void>(resolve => {
+          const done = () => {
+            media.removeEventListener('seeked', done)
+            clearTimeout(timer)
+            resolve()
+          }
+          const timer = setTimeout(done, 1000)
+          media.addEventListener('seeked', done)
+          media.currentTime = rangeStart
+        })
+      }
 
       console.log('[Export] Starting playback...')
 
@@ -337,15 +359,17 @@ export function useCanvasExport({
         })
 
         // Update progress
-        const progressPercent = Math.round((media.currentTime / duration) * 100)
+        const progressPercent = Math.max(0, Math.min(100,
+          Math.round(((media.currentTime - rangeStart) / rangeLength) * 100)
+        ))
         setProgress(prev => ({
           ...prev,
           progress: progressPercent,
           message: `Recording... ${progressPercent}%`,
         }))
 
-        // Check if media ended
-        if (media.ended || media.currentTime >= duration) {
+        // Check if media ended or reached the end of the trimmed range
+        if (media.ended || media.currentTime >= rangeEnd) {
           console.log('[Export] Media ended, stopping recorder')
           media.pause()
           mediaRecorder.stop()
@@ -368,7 +392,7 @@ export function useCanvasExport({
         message: error instanceof Error ? error.message : 'Export failed',
       })
     }
-  }, [mediaRef, segments, source, fileFormat])
+  }, [mediaRef, segments, source, fileFormat, trim])
 
   /**
    * Cancel ongoing export

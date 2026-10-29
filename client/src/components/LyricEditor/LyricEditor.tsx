@@ -207,7 +207,7 @@ export function LyricEditor({
           <Button
             onClick={handleAddSection}
             disabled={videoDuration === 0}
-            className="w-full bg-emerald-600 hover:bg-emerald-500"
+            className="w-full"
           >
             <Layers className="w-4 h-4 mr-2" />
             Add Lyric Section
@@ -235,7 +235,7 @@ export function LyricEditor({
             size="sm"
             onClick={handleAddSection}
             title="Add a new lyric section"
-            className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-500/10"
+            className="text-primary hover:text-primary hover:bg-primary/10"
           >
             <Plus className="w-4 h-4 mr-1" />
             Section
@@ -261,15 +261,15 @@ export function LyricEditor({
                   key={section.id}
                   className={cn(
                     'rounded-lg border-2 overflow-hidden transition-colors',
-                    'border-emerald-500/30 bg-emerald-500/5',
-                    isSelected && 'border-emerald-400 ring-1 ring-emerald-400'
+                    'border-primary/30 bg-primary/5',
+                    isSelected && 'border-primary ring-1 ring-primary'
                   )}
                 >
                   {/* Section Header */}
                   <div
                     className={cn(
                       'flex items-center justify-between px-3 py-2 cursor-pointer',
-                      'bg-emerald-600/20 hover:bg-emerald-600/30 transition-colors'
+                      'bg-primary/15 hover:bg-primary/25 transition-colors'
                     )}
                     onClick={() => {
                       onSelectSection(section.id)
@@ -278,15 +278,15 @@ export function LyricEditor({
                   >
                     <div className="flex items-center gap-2">
                       {isExpanded || isNewSection ? (
-                        <ChevronDown className="w-4 h-4 text-emerald-400" />
+                        <ChevronDown className="w-4 h-4 text-primary" />
                       ) : (
-                        <ChevronRight className="w-4 h-4 text-emerald-400" />
+                        <ChevronRight className="w-4 h-4 text-primary" />
                       )}
-                      <Layers className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm font-medium text-emerald-200">
+                      <Layers className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
                         {formatTime(section.startTime)} - {formatTime(section.endTime)}
                       </span>
-                      <span className="text-xs text-emerald-400/70">
+                      <span className="text-xs text-primary/70">
                         ({sectionSegments.length} segments)
                       </span>
                     </div>

@@ -7,6 +7,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
 import { TimelineLyricSection } from './TimelineLyricSection'
 import { RetimePanel } from './RetimePanel'
+import { TimelineTrimHandle } from './TimelineTrimHandle'
 import { StageSizeToggle } from '@/components/VideoPlayer/StageSizeToggle'
 import { TimelineWaveform } from './TimelineWaveform'
 import { cn } from '@/utils/cn'
@@ -18,7 +19,9 @@ import type { Waveform } from '@/hooks'
 const SCRUB_EDGE_ZONE = 40
 /** Fastest auto-scroll while scrubbing, in px per frame */
 const SCRUB_MAX_SPEED = 30
-import type { LyricSegment, LyricSection, TimelineState, StageSize } from '@/types'
+/** Shortest export range, in seconds */
+const MIN_TRIM_LENGTH = 1
+import type { LyricSegment, LyricSection, TimelineState, StageSize, TrimRange } from '@/types'
 
 interface TimelineProps {
   segments: LyricSegment[]
@@ -51,6 +54,9 @@ interface TimelineProps {
   /** Mobile preview sizing, cycled by a button next to the zoom buttons */
   stageSize?: StageSize
   onStageSizeChange?: (size: StageSize) => void
+  /** Part of the media that gets exported; shown as draggable handles on the ruler */
+  trim?: TrimRange
+  onTrimChange?: (range: TrimRange) => void
   /** Receives the toolbar element the stage's icon row is rendered into */
   onMenuSlotChange?: (element: HTMLDivElement | null) => void
 }
@@ -83,6 +89,8 @@ export function Timeline({
   onMenuSlotChange,
   stageSize,
   onStageSizeChange,
+  trim,
+  onTrimChange,
 }: TimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -136,18 +144,20 @@ export function Timeline({
     return pixels / pixelsPerSecond
   }, [pixelsPerSecond])
   
-  // Seek to the time under a pointer position
-  const seekToClientX = useCallback((clientX: number) => {
+  // Convert a pointer position to a time on the timeline
+  const clientXToTime = useCallback((clientX: number) => {
     const track = trackRef.current
-    if (!track) return
+    if (!track) return 0
 
     const rect = track.getBoundingClientRect()
-    const x = clientX - rect.left + track.scrollLeft
-    const time = pixelsToTime(x)
+    return pixelsToTime(clientX - rect.left + track.scrollLeft)
+  }, [pixelsToTime])
 
+  // Seek to the time under a pointer position
+  const seekToClientX = useCallback((clientX: number) => {
     // Allow seeking up to the effective duration (including segments past video end)
-    onSeek(Math.max(0, Math.min(time, effectiveDuration)))
-  }, [pixelsToTime, effectiveDuration, onSeek])
+    onSeek(Math.max(0, Math.min(clientXToTime(clientX), effectiveDuration)))
+  }, [clientXToTime, effectiveDuration, onSeek])
 
   // Handle click on timeline track to seek
   const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -291,6 +301,9 @@ export function Timeline({
       onUpdateSection(targetSection.id, { startTime: currentTime })
     }
   }, [createsSection, targetSection, currentTime, duration, onAddSection, onUpdateSection])
+
+  // Trim handles only make sense once the media is loaded
+  const showTrim = !!trim && !!onTrimChange && duration > 0
 
   // if (duration === 0) {
   //   return (
@@ -447,7 +460,45 @@ export function Timeline({
                 </span>
               </div>
             ))}
+
+            {/* Export range handles */}
+            {showTrim && (
+              <>
+                <TimelineTrimHandle
+                  edge="start"
+                  time={trim.start}
+                  pixelsPerSecond={pixelsPerSecond}
+                  min={0}
+                  max={trim.end - MIN_TRIM_LENGTH}
+                  clientXToTime={clientXToTime}
+                  onChange={start => onTrimChange({ ...trim, start })}
+                />
+                <TimelineTrimHandle
+                  edge="end"
+                  time={trim.end}
+                  pixelsPerSecond={pixelsPerSecond}
+                  min={trim.start + MIN_TRIM_LENGTH}
+                  max={duration}
+                  clientXToTime={clientXToTime}
+                  onChange={end => onTrimChange({ ...trim, end })}
+                />
+              </>
+            )}
           </div>
+
+          {/* Parts outside the export range are dimmed (still editable, just not exported) */}
+          {showTrim && trim.start > 0 && (
+            <div
+              className="absolute top-6 bottom-0 left-0 bg-black/60 border-r-2 border-amber-400 pointer-events-none z-[6]"
+              style={{ width: timeToPixels(trim.start) }}
+            />
+          )}
+          {showTrim && trim.end < effectiveDuration && (
+            <div
+              className="absolute top-6 bottom-0 bg-black/60 border-l-2 border-amber-400 pointer-events-none z-[6]"
+              style={{ left: timeToPixels(trim.end), width: timeToPixels(effectiveDuration - trim.end) }}
+            />
+          )}
           
           {/* Segments Track */}
           <div className="absolute top-8 left-0 h-[56px] bg-timeline-track min-w-full" style={{ width: totalWidth }}>
@@ -456,16 +507,16 @@ export function Timeline({
               const selectedSection = lyricSections.find(s => s.id === selectedSectionId)!
               return (
                 <div 
-                  className="absolute top-0 bottom-0 bg-emerald-500/20 border-x-2 border-emerald-400 pointer-events-none z-[5]"
+                  className="absolute top-0 bottom-0 bg-primary/20 border-x-2 border-primary pointer-events-none z-[5]"
                   style={{ 
                     left: timeToPixels(selectedSection.startTime), 
                     width: timeToPixels(selectedSection.endTime - selectedSection.startTime) 
                   }}
                 >
                   {/* Left edge indicator */}
-                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400" />
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary" />
                   {/* Right edge indicator */}
-                  <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-emerald-400" />
+                  <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary" />
                 </div>
               )
             })()}

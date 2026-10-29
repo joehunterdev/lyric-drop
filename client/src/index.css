@@ -2,15 +2,16 @@
 
 /* Joe Hunter Brand Tokens */
 :root {
-  /* Brand Colors */
-  --brand-primary: #00e8ce;
-  --brand-secondary: #8869b4;
-  --brand-tertiary: #634c82;
+  /* Brand Colors - sampled from logo.png (teal of the D, violet top of the L) */
+  /* --brand-primary: #00e8ce; --brand-secondary: #8869b4; --brand-tertiary: #634c82; */
+  --brand-primary: #02f3f6;
+  --brand-secondary: #8b29fd;
+  --brand-tertiary: #5b1fa8;
   
   /* Semantic Colors */
-  --color-success: #00e8ce;
-  --color-warning: #634c82;
-  --color-danger: #8869b4;
+  --color-success: #02f3f6;
+  --color-warning: #5b1fa8;
+  --color-danger: #8b29fd;
   
   /* Backgrounds */
   --bg-dark: #333333;
@@ -23,7 +24,8 @@
   --grey-light: #ededed;
   
   /* Typography */
-  --font-primary: 'Titillium Web', 'Helvetica Neue', Arial, sans-serif;
+  /* --font-primary: 'Titillium Web', 'Helvetica Neue', Arial, sans-serif; */
+  --font-primary: 'Poppins', 'Helvetica Neue', Arial, sans-serif;
   --font-code: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', Monaco, monospace;
   --text-color: rgb(244, 255, 255);
   --font-size-base: 16px;
@@ -38,32 +40,32 @@
   --color-popover: oklch(0.178 0 0);
   --color-popover-foreground: oklch(0.985 0 0);
   
-  /* Primary - Joe Hunter Cyan (#00e8ce) */
-  --color-primary: oklch(0.835 0.151 181);
+  /* Primary - logo teal (#02f3f6). Old: oklch(0.835 0.151 181) */
+  --color-primary: #02f3f6;
   --color-primary-foreground: oklch(0.145 0 0);
   
-  /* Secondary - Joe Hunter Purple (#8869b4) */
-  --color-secondary: oklch(0.55 0.13 290);
+  /* Secondary - logo violet (#8b29fd). Old: oklch(0.55 0.13 290) */
+  --color-secondary: #8b29fd;
   --color-secondary-foreground: oklch(0.985 0 0);
   
   --color-muted: oklch(0.269 0 0);
   --color-muted-foreground: oklch(0.708 0 0);
   
   /* Accent - Uses brand primary */
-  --color-accent: oklch(0.835 0.151 181);
+  --color-accent: #02f3f6;
   --color-accent-foreground: oklch(0.145 0 0);
   
   --color-destructive: oklch(0.396 0.141 25.723);
   --color-destructive-foreground: oklch(0.637 0.237 25.331);
   --color-border: oklch(0.3 0 0);
   --color-input: oklch(0.269 0 0);
-  --color-ring: oklch(0.835 0.151 181);
+  --color-ring: #02f3f6;
   
   /* Timeline specific colors */
   --color-timeline-bg: oklch(0.12 0 0);
   --color-timeline-track: oklch(0.2 0 0);
-  --color-timeline-segment: oklch(0.55 0.13 290);
-  --color-timeline-playhead: oklch(0.835 0.151 181);
+  --color-timeline-segment: #8b29fd;
+  --color-timeline-playhead: #02f3f6;
 
   /* Chart colors */
   --color-chart-1: oklch(0.488 0.243 264.376);
@@ -72,25 +74,26 @@
   --color-chart-4: oklch(0.627 0.265 303.9);
   --color-chart-5: oklch(0.645 0.246 16.439);
 
-  /* Border radius */
-  --radius-lg: 0.5rem;
-  --radius-md: calc(var(--radius-lg) - 2px);
-  --radius-sm: calc(var(--radius-lg) - 4px);
+  /* Border radius - square design. Old: --radius-lg: 0.5rem */
+  --radius-lg: 0;
+  --radius-md: 0;
+  --radius-sm: 0;
 
   /* Sidebar */
   --color-sidebar: oklch(0.145 0 0);
   --color-sidebar-foreground: oklch(0.985 0 0);
-  --color-sidebar-primary: oklch(0.835 0.151 181);
+  --color-sidebar-primary: #02f3f6;
   --color-sidebar-primary-foreground: oklch(0.145 0 0);
   --color-sidebar-accent: oklch(0.269 0 0);
   --color-sidebar-accent-foreground: oklch(0.985 0 0);
   --color-sidebar-border: oklch(0.3 0 0);
-  --color-sidebar-ring: oklch(0.835 0.151 181);
+  --color-sidebar-ring: #02f3f6;
   --width-sidebar: 16rem;
   --width-sidebar-icon: 3rem;
 
-  /* Typography - Titillium Web */
-  --font-sans: 'Titillium Web', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  /* Typography - Poppins: 400 body, 500 UI labels, 600 headings, 800 logo only */
+  /* --font-sans: 'Titillium Web', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; */
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
@@ -105,4 +108,13 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
   }
+}
+
+/* Square design: unlayered, so it beats every rounded-* utility (including rounded-full and
+   arbitrary values). Inline styles still win, so the lyric box preview keeps its own radius.
+   Delete this block to bring rounded corners back. */
+*,
+*::before,
+*::after {
+  border-radius: 0;
 }

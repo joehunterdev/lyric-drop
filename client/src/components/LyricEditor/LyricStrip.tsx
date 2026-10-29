@@ -107,7 +107,7 @@ export function LyricStrip({
           Add a lyric section, then type or paste your lines.
         </p>
         <Button
-          className="w-full bg-emerald-600 hover:bg-emerald-500"
+          className="w-full"
           disabled={videoDuration === 0}
           onClick={() => onAddLyricSection(0, videoDuration)}
         >
@@ -155,7 +155,7 @@ export function LyricStrip({
                 className={cn(
                   'w-32 shrink-0 rounded-md border p-2 text-left transition-colors',
                   selectedSegmentId === segment.id
-                    ? 'border-emerald-400 bg-emerald-500/10'
+                    ? 'border-primary bg-primary/10'
                     : isSpacer
                       ? 'border-dashed border-muted-foreground/30 bg-muted/20'
                       : 'border-border bg-card/50'

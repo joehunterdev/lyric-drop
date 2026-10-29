@@ -23,6 +23,14 @@ export interface LyricSection {
 }
 
 /**
+ * Part of the media that gets exported, in seconds
+ */
+export interface TrimRange {
+  start: number
+  end: number
+}
+
+/**
  * Media (video or audio) file state - the clock that drives the timeline
  */
 export interface MediaState {
