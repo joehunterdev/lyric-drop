@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/en/how-to-add-lyrics-to-tiktok-videos.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/how-to-add-lyrics-to-tiktok-videos.html"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/como-agregar-letras-a-videos-tiktok.html"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/es/como-agregar-letras-a-videos-tiktok.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/como-agregar-letras-a-videos-tiktok.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/how-to-add-lyrics-to-tiktok-videos.html"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/en/best-lyric-video-tools.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/best-lyric-video-tools.html"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/mejores-herramientas-videos-letras.html"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/es/mejores-herramientas-videos-letras.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/mejores-herramientas-videos-letras.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/best-lyric-video-tools.html"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/en/about-lyric-drop.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/about-lyric-drop.html"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/acerca-de-lyric-drop.html"/>
+  </url>
+
+  <url>
+    <loc>https://lyric-drop.joehunter.dev/es/acerca-de-lyric-drop.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="es" href="https://lyric-drop.joehunter.dev/es/acerca-de-lyric-drop.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lyric-drop.joehunter.dev/en/about-lyric-drop.html"/>
+  </url>
+
+</urlset>
