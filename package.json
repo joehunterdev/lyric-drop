@@ -13,6 +13,7 @@
     "dev:server": "npm run dev --workspace=converter-server",
     "start:server": "npm run start --workspace=converter-server",
     "build": "npm run build --workspace=client",
+    "deploy": "node scripts/deploy.mjs",
     "lint": "npm run lint --workspace=client",
     "preview": "npm run preview --workspace=client",
     "install:all": "npm install",
