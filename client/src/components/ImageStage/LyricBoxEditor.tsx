@@ -149,6 +149,8 @@ export function LyricBoxEditor({ box, onChange, isPlaying, showHint }: LyricBoxE
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        // Dragging the box must not count as a tap on the stage (tap = play/pause)
+        onClick={e => e.stopPropagation()}
       >
         {showHint && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60 select-none">

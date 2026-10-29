@@ -70,6 +70,19 @@ export const ImageFit = {
 export type ImageFit = (typeof ImageFit)[keyof typeof ImageFit]
 
 /**
+ * Mobile preview sizing (desktop ignores it)
+ * - COMPACT: height-capped, whole frame visible, side bars if narrower than the screen
+ * - WIDE: full width at the natural aspect, so the preview gets taller
+ * - COVER: full width in the compact fixed height, overflow cropped so it fills edge to edge
+ */
+export const StageSize = {
+  COMPACT: 'compact',
+  WIDE: 'wide',
+  COVER: 'cover',
+} as const
+export type StageSize = (typeof StageSize)[keyof typeof StageSize]
+
+/**
  * Text alignment options for lyrics
  */
 export const TextAlign = {

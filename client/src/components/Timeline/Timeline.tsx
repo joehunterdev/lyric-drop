@@ -1,12 +1,15 @@
 import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
-import { Pause, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Pause, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine, ArrowLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
 import { TimelineLyricSection } from './TimelineLyricSection'
 import { RetimePanel } from './RetimePanel'
+import { StageSizeToggle } from '@/components/VideoPlayer/StageSizeToggle'
 import { TimelineWaveform } from './TimelineWaveform'
+import { cn } from '@/utils/cn'
 import { formatTime, retimeFollowingSegments } from '@/utils'
 import type { RetimeOptions } from '@/utils'
 import type { Waveform } from '@/hooks'
@@ -15,7 +18,7 @@ import type { Waveform } from '@/hooks'
 const SCRUB_EDGE_ZONE = 40
 /** Fastest auto-scroll while scrubbing, in px per frame */
 const SCRUB_MAX_SPEED = 30
-import type { LyricSegment, LyricSection, TimelineState } from '@/types'
+import type { LyricSegment, LyricSection, TimelineState, StageSize } from '@/types'
 
 interface TimelineProps {
   segments: LyricSegment[]
@@ -38,6 +41,18 @@ interface TimelineProps {
   onRetime: (id: string, options: RetimeOptions) => void
   onUndoRetime: () => void
   canUndoRetime: boolean
+  /** Mobile: the stage has its own icon row, shown in the toolbar until the timeline is touched */
+  hasMobileMenu?: boolean
+  /** Mobile: extra buttons shown after the stage's icons in the menu row */
+  mobileMenuExtra?: ReactNode
+  /** Mobile: showing the timeline tools (true) or the stage icons (false) */
+  toolsOpen?: boolean
+  onToolsOpenChange?: (open: boolean) => void
+  /** Mobile preview sizing, cycled by a button next to the zoom buttons */
+  stageSize?: StageSize
+  onStageSizeChange?: (size: StageSize) => void
+  /** Receives the toolbar element the stage's icon row is rendered into */
+  onMenuSlotChange?: (element: HTMLDivElement | null) => void
 }
 
 export function Timeline({
@@ -61,9 +76,19 @@ export function Timeline({
   onRetime,
   onUndoRetime,
   canUndoRetime,
+  hasMobileMenu = false,
+  mobileMenuExtra,
+  toolsOpen = false,
+  onToolsOpenChange,
+  onMenuSlotChange,
+  stageSize,
+  onStageSizeChange,
 }: TimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  // Mobile toolbar: stage menu by default, timeline tools once the timeline is touched
+  const showMenu = hasMobileMenu && !toolsOpen
 
   // Retime settings live here so they survive closing the panel
   const [retimeOpen, setRetimeOpen] = useState(false)
@@ -267,25 +292,57 @@ export function Timeline({
     }
   }, [createsSection, targetSection, currentTime, duration, onAddSection, onUpdateSection])
 
-  if (duration === 0) {
-    return (
-      <div className="bg-timeline-bg rounded-lg p-4 text-center text-muted-foreground">
-        Upload a video to see the timeline
-      </div>
-    )
-  }
+  // if (duration === 0) {
+  //   return (
+  //     <div className="bg-timeline-bg rounded-lg p-4 text-center text-muted-foreground">
+  //       Upload a video to see the timeline
+  //     </div>
+  //   )
+  // }
   
   return (
     <div className="bg-timeline-bg rounded-lg overflow-hidden">
+      {/* Mobile menu row: the stage's icons are portalled into the slot (kept mounted,
+          just hidden), followed by the app-level buttons */}
+      {hasMobileMenu && (
+        <div
+          className={cn(
+            'flex items-center justify-center gap-2 px-3 py-2 border-b border-border lg:hidden',
+            !showMenu && 'hidden'
+          )}
+        >
+          <div ref={onMenuSlotChange} className="contents" />
+          {mobileMenuExtra}
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div
+        className={cn(
+          'flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b border-border',
+          showMenu && 'max-lg:hidden'
+        )}
+      >
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Timeline</span>
+          {hasMobileMenu && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => onToolsOpenChange?.(false)}
+              aria-label="Back to menu"
+              title="Back to menu"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          <span className="hidden sm:inline text-sm text-muted-foreground">Timeline</span>
           <Button
             variant="outline"
             size="sm"
             onClick={handleSetStart}
             disabled={!canSetStart}
+            aria-label="Set start"
             title={
               createsSection
                 ? `Start the lyrics at ${formatTime(currentTime)}`
@@ -296,49 +353,55 @@ export function Timeline({
                     : 'Move the playhead inside the section\'s allowed range'
             }
           >
-            <ArrowRightFromLine className="w-4 h-4 mr-1" />
-            Set start
+            <ArrowRightFromLine className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Set start</span>
           </Button>
           <Button
             variant="outline" 
             size="sm" 
             onClick={() => onInsertSpacer(currentTime)}
             disabled={segments.length === 0}
+            aria-label="Insert space"
             title="Insert space at playhead"
           >
-            <Pause className="w-4 h-4 mr-1" />
-            Insert Space
+            <Pause className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Insert Space</span>
           </Button>
           <Button
             variant={retimeOpen ? 'secondary' : 'outline'}
             size="sm"
             onClick={() => setRetimeOpen(open => !open)}
             disabled={segments.length === 0}
+            aria-label="Auto-time"
             title="Time the following lines from the selected line"
           >
-            <Gauge className="w-4 h-4 mr-1" />
-            Auto-time
+            <Gauge className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Auto-time</span>
           </Button>
           {canUndoRetime && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onUndoRetime}
+              aria-label="Undo auto-time"
               title="Undo the last auto-time"
             >
-              <Undo2 className="w-4 h-4 mr-1" />
-              Undo auto-time
+              <Undo2 className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Undo auto-time</span>
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={timelineState.zoom <= 0.5}>
+        <div className="flex items-center gap-1 sm:gap-2">
+          {stageSize && onStageSizeChange && (
+            <StageSizeToggle size={stageSize} onChange={onStageSizeChange} />
+          )}
+          <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={timelineState.zoom <= 0.5} aria-label="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </Button>
-          <span className="text-sm text-muted-foreground w-12 text-center">
+          <span className="hidden sm:block text-sm text-muted-foreground w-12 text-center">
             {Math.round(timelineState.zoom * 100)}%
           </span>
-          <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={timelineState.zoom >= 4}>
+          <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={timelineState.zoom >= 4} aria-label="Zoom in">
             <ZoomIn className="w-4 h-4" />
           </Button>
         </div>
@@ -356,7 +419,8 @@ export function Timeline({
         />
       )}
 
-      <ScrollArea className="w-full" ref={scrollAreaRef}>
+      {/* Touching the timeline swaps the mobile toolbar to the timeline tools */}
+      <ScrollArea className="w-full" ref={scrollAreaRef} onPointerDownCapture={() => onToolsOpenChange?.(true)}>
         <div 
           ref={trackRef}
           className="relative min-h-[160px] min-w-full"

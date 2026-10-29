@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Settings, FileVideo, ImageIcon, FileText, Palette } from 'lucide-react'
+import { Settings, FileText, Palette } from 'lucide-react'
 
-import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform } from '@/hooks'
+import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform, useMediaQuery, DESKTOP_QUERY } from '@/hooks'
 import type { ExportSource } from '@/hooks/useCanvasExport'
 import { SettingsProvider, OverlayProvider, useOverlay, useSettings } from '@/contexts'
 import { VideoPlayer } from '@/components/VideoPlayer'
@@ -10,22 +10,30 @@ import { Timeline } from '@/components/Timeline'
 import { LyricEditor } from '@/components/LyricEditor'
 import { StylePanel } from '@/components/StylePanel'
 import { ExportButton, ExportProgress } from '@/components/ExportButton'
-import { Sidebar, LanguageNav } from '@/components/layout'
+import { Sidebar, LanguageNav, type AppView } from '@/components/layout'
 import { VideoConverter } from '@/components/VideoConverter'
 import { Button } from '@/components/ui/button'
+import { DockedSheet, type SheetSnap } from '@/components/ui/docked-sheet'
 import { NewTabLink } from '@/components/ui/new-tab-link'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { SourceMode, OutputFormat, ImageFit, ExportStatus } from '@/types'
+import { SourceMode, OutputFormat, ImageFit, ExportStatus, StageSize } from '@/types'
 import { isImageFile, validateImageFile, validateVideoFile } from '@/utils'
 import './index.css'
 
 /** Shown in the paused preview when no lyric is selected or on screen */
 const SAMPLE_LYRIC = 'Sample lyric line'
 
-type AppView = 'editor' | 'converter'
-
 function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [stageSize, setStageSize] = useState<StageSize>(StageSize.COMPACT)
+  // Slot in the timeline toolbar where the image stage renders its mobile icon row
+  const [menuSlot, setMenuSlot] = useState<HTMLElement | null>(null)
+  // Mobile toolbar under the stage: stage icons by default, timeline tools after touching the timeline
+  const [timelineToolsOpen, setTimelineToolsOpen] = useState(false)
+  // Mobile: Lyrics / Style live in a docked panel (desktop keeps the sidebar tabs)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const [mobileSheet, setMobileSheet] = useState<'lyrics' | 'style' | null>(null)
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('half')
   const [currentView, setCurrentView] = useState<AppView>('editor')
   const [sourceMode, setSourceMode] = useState<SourceMode>(SourceMode.VIDEO)
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(OutputFormat.REEL)
@@ -130,10 +138,41 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentView, isExporting, togglePlayPause])
 
+  // Lyrics opens tall (room to write), Style opens half so the preview stays visible
+  const toggleMobileSheet = (kind: 'lyrics' | 'style') => {
+    if (mobileSheet === kind) {
+      setMobileSheet(null)
+      return
+    }
+    if (!mobileSheet) setSheetSnap(kind === 'lyrics' ? 'tall' : 'half')
+    setMobileSheet(kind)
+  }
+
+  const lyricEditor = (
+    <LyricEditor
+      segments={segments}
+      lyricSections={lyricSections}
+      selectedSegmentId={selectedSegmentId}
+      selectedSectionId={selectedSectionId}
+      videoDuration={mediaState.duration}
+      currentTime={mediaState.currentTime}
+      onImportLyrics={importLyrics}
+      onAppendLyrics={appendLyrics}
+      onSelectSegment={selectSegment}
+      onUpdateSegment={updateSegment}
+      onRemoveSegment={removeSegment}
+      onInsertSpacer={insertSpacer}
+      onAddLyricSection={addLyricSection}
+      onRemoveLyricSection={removeLyricSection}
+      onSelectSection={selectLyricSection}
+    />
+  )
+  const stylePanel = <StylePanel isImageMode={sourceMode === SourceMode.IMAGE} />
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border px-4 py-3 bg-[rgba(0,0,0,0.8)]">
+      <header className="border-b border-border px-3 lg:px-4 py-3 bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
             type="button"
@@ -162,8 +201,8 @@ function AppContent() {
           <div className="flex items-center gap-2">
             {/* Content Pages Nav (EN / ES dropdowns) */}
             <LanguageNav />
-            {/* View Switcher */}
-            <div className="flex gap-1 mr-2">
+            {/* View Switcher - desktop only; on mobile it lives in the slide panel */}
+            <div className="hidden md:flex gap-1 mr-2">
               <Button
                 variant={currentView === 'editor' ? 'default' : 'ghost'}
                 size="sm"
@@ -202,12 +241,16 @@ function AppContent() {
       {/* Main Content */}
       <main className="flex-1">
         {currentView === 'editor' ? (
-          <div className="max-w-7xl mx-auto p-4">
-            {/* Row 1: Video Player (center) + Lyric Editor (scrollable sidebar on desktop) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
+          <div className="max-w-7xl mx-auto px-2 py-2 lg:p-4">
+            {/* Mobile order: video -> timeline -> lyrics/style.
+                Desktop: video + lyrics side by side, timeline full width below. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-6 lg:items-start">
               {/* Video Player - Left/Center */}
-              <div className="lg:col-span-2">
-                {/* Source Mode Switcher */}
+              <div
+                className="order-1 lg:col-span-2"
+                onPointerDownCapture={() => setTimelineToolsOpen(false)}
+              >
+                {/* Source Mode Switcher - disabled for now: the empty stage picks the mode from the file type
                 <div className="flex gap-1 mb-4">
                   <Button
                     variant={sourceMode === SourceMode.VIDEO ? 'default' : 'outline'}
@@ -226,6 +269,7 @@ function AppContent() {
                     Image + Audio
                   </Button>
                 </div>
+                */}
 
                 {sourceMode === SourceMode.IMAGE ? (
                   <ImageStage
@@ -243,6 +287,8 @@ function AppContent() {
                     onLoadAudio={loadAudio}
                     onTogglePlayPause={togglePlayPause}
                     onSeek={seek}
+                    stageSize={stageSize}
+                    menuSlot={menuSlot}
                   />
                 ) : (
                   <VideoPlayer
@@ -252,12 +298,15 @@ function AppContent() {
                     onLoadFile={loadStageFile}
                     onTogglePlayPause={togglePlayPause}
                     onSeek={seek}
+                    stageSize={stageSize}
                   />
                 )}
               </div>
 
-              {/* Lyrics / Style - Right sidebar; capped height + internal scroll on desktop */}
-              <div className="lg:col-span-1 min-h-[400px] lg:h-[80vh] overflow-hidden flex flex-col">
+              {/* Lyrics / Style - desktop right sidebar; capped height + internal scroll.
+                  On mobile they open from the menu row in a docked panel instead. */}
+              {isDesktop && (
+              <div className="lg:order-2 lg:col-span-1 lg:h-[80vh] overflow-hidden flex flex-col">
                 <Tabs defaultValue="lyrics" className="flex-1 min-h-0">
                   <TabsList className="w-full">
                     <TabsTrigger value="lyrics">
@@ -268,56 +317,84 @@ function AppContent() {
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="lyrics" className="min-h-0 overflow-hidden flex flex-col">
-                    <LyricEditor
-                      segments={segments}
-                      lyricSections={lyricSections}
-                      selectedSegmentId={selectedSegmentId}
-                      selectedSectionId={selectedSectionId}
-                      videoDuration={mediaState.duration}
-                      currentTime={mediaState.currentTime}
-                      onImportLyrics={importLyrics}
-                      onAppendLyrics={appendLyrics}
-                      onSelectSegment={selectSegment}
-                      onUpdateSegment={updateSegment}
-                      onRemoveSegment={removeSegment}
-                      onInsertSpacer={insertSpacer}
-                      onAddLyricSection={addLyricSection}
-                      onRemoveLyricSection={removeLyricSection}
-                      onSelectSection={selectLyricSection}
-                    />
+                    {lyricEditor}
                   </TabsContent>
                   <TabsContent value="style" className="min-h-0 overflow-hidden flex flex-col">
-                    <StylePanel isImageMode={sourceMode === SourceMode.IMAGE} />
+                    {stylePanel}
                   </TabsContent>
                 </Tabs>
               </div>
+              )}
+
+              {/* Timeline - full width */}
+              <div className="order-2 lg:order-3 lg:col-span-3 min-w-0">
+                <Timeline
+                  segments={segments}
+                  lyricSections={lyricSections}
+                  selectedSegmentId={selectedSegmentId}
+                  selectedSectionId={selectedSectionId}
+                  currentTime={mediaState.currentTime}
+                  duration={mediaState.duration}
+                  timelineState={timelineState}
+                  waveform={waveform}
+                  isPlaying={mediaState.isPlaying}
+                  onSelectSegment={selectSegment}
+                  onUpdateSegment={updateSegment}
+                  onInsertSpacer={insertSpacer}
+                  onSelectSection={selectLyricSection}
+                  onUpdateSection={updateLyricSection}
+                  onAddSection={addLyricSection}
+                  onSeek={seek}
+                  onZoom={setZoom}
+                  onRetime={retimeFromSegment}
+                  onUndoRetime={undoRetime}
+                  canUndoRetime={canUndoRetime}
+                  hasMobileMenu
+                  mobileMenuExtra={
+                    <>
+                      <Button
+                        variant={mobileSheet === 'lyrics' ? 'secondary' : 'outline'}
+                        size="icon"
+                        data-docked-sheet-toggle
+                        onClick={() => toggleMobileSheet('lyrics')}
+                        aria-label="Lyrics"
+                        title="Lyrics"
+                      >
+                        <FileText />
+                      </Button>
+                      <Button
+                        variant={mobileSheet === 'style' ? 'secondary' : 'outline'}
+                        size="icon"
+                        data-docked-sheet-toggle
+                        onClick={() => toggleMobileSheet('style')}
+                        aria-label="Style"
+                        title="Style"
+                      >
+                        <Palette />
+                      </Button>
+                    </>
+                  }
+                  toolsOpen={timelineToolsOpen}
+                  onToolsOpenChange={setTimelineToolsOpen}
+                  stageSize={stageSize}
+                  onStageSizeChange={setStageSize}
+                  onMenuSlotChange={setMenuSlot}
+                />
+              </div>
             </div>
 
-            {/* Row 2: Timeline - full width */}
-            <div className="mt-6">
-              <Timeline
-                segments={segments}
-                lyricSections={lyricSections}
-                selectedSegmentId={selectedSegmentId}
-                selectedSectionId={selectedSectionId}
-                currentTime={mediaState.currentTime}
-                duration={mediaState.duration}
-                timelineState={timelineState}
-                waveform={waveform}
-                isPlaying={mediaState.isPlaying}
-                onSelectSegment={selectSegment}
-                onUpdateSegment={updateSegment}
-                onInsertSpacer={insertSpacer}
-                onSelectSection={selectLyricSection}
-                onUpdateSection={updateLyricSection}
-                onAddSection={addLyricSection}
-                onSeek={seek}
-                onZoom={setZoom}
-                onRetime={retimeFromSegment}
-                onUndoRetime={undoRetime}
-                canUndoRetime={canUndoRetime}
-              />
-            </div>
+            {!isDesktop && (
+              <DockedSheet
+                open={mobileSheet !== null}
+                onClose={() => setMobileSheet(null)}
+                title={mobileSheet === 'style' ? 'Style' : 'Lyrics'}
+                snap={sheetSnap}
+                onSnapChange={setSheetSnap}
+              >
+                {mobileSheet === 'lyrics' && lyricEditor}
+                {mobileSheet === 'style' && stylePanel}
+              </DockedSheet>
+            )}
           </div>
         ) : (
           <VideoConverter />
@@ -325,7 +402,12 @@ function AppContent() {
       </main>
       
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+      />
       
       {/* Footer */}
       <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">

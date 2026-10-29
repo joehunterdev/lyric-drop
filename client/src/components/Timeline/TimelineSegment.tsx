@@ -16,7 +16,16 @@ interface TimelineSegmentProps {
 
 type DragType = 'left' | 'right' | null
 
-const HANDLE_WIDTH = 8 // pixels
+interface DragState {
+  type: 'left' | 'right'
+  startX: number
+  startStartTime: number
+  startEndTime: number
+  lowerBound: number
+  upperBound: number
+}
+
+const HANDLE_WIDTH = 12 // pixels - wide enough for a finger
 const SEGMENT_MARGIN = 2 // pixels between segments
 
 export function TimelineSegment({
@@ -30,6 +39,7 @@ export function TimelineSegment({
   onUpdate,
 }: TimelineSegmentProps) {
   const segmentRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<DragState | null>(null)
   const [dragType, setDragType] = useState<DragType>(null)
   const [isDragging, setIsDragging] = useState(false)
   
@@ -37,8 +47,10 @@ export function TimelineSegment({
   const left = segment.startTime * pixelsPerSecond
   const width = Math.max((segment.endTime - segment.startTime) * pixelsPerSecond, 20)
   
-  // Handle mouse down on resize handles
-  const handleMouseDown = useCallback((e: React.MouseEvent, type: DragType) => {
+  // Pointer events (not mouse events) so resizing works with mouse, touch and pen.
+  // The handle captures the pointer, so the drag keeps tracking outside it.
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>, type: 'left' | 'right') => {
+    if (e.button !== 0) return
     if (!isSelected) {
       onSelect(segment.id)
       return
@@ -46,41 +58,42 @@ export function TimelineSegment({
     
     e.stopPropagation()
     e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
     
+    dragRef.current = {
+      type,
+      startX: e.clientX,
+      startStartTime: segment.startTime,
+      startEndTime: segment.endTime,
+      lowerBound: minTime,
+      upperBound: maxTime ?? duration,
+    }
     setDragType(type)
     setIsDragging(true)
+  }, [isSelected, segment.id, segment.startTime, segment.endTime, duration, minTime, maxTime, onSelect])
+  
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
     
-    const startX = e.clientX
-    const startStartTime = segment.startTime
-    const startEndTime = segment.endTime
-    const lowerBound = minTime
-    const upperBound = maxTime ?? duration
+    const deltaTime = (e.clientX - drag.startX) / pixelsPerSecond
     
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaTime = deltaX / pixelsPerSecond
-      
-      if (type === 'left') {
-        // Adjust start time
-        const newStartTime = Math.max(lowerBound, Math.min(startStartTime + deltaTime, startEndTime - 0.1))
-        onUpdate(segment.id, { startTime: newStartTime })
-      } else if (type === 'right') {
-        // Adjust end time
-        const newEndTime = Math.max(startStartTime + 0.1, Math.min(startEndTime + deltaTime, upperBound))
-        onUpdate(segment.id, { endTime: newEndTime })
-      }
+    if (drag.type === 'left') {
+      // Adjust start time
+      const newStartTime = Math.max(drag.lowerBound, Math.min(drag.startStartTime + deltaTime, drag.startEndTime - 0.1))
+      onUpdate(segment.id, { startTime: newStartTime })
+    } else {
+      // Adjust end time
+      const newEndTime = Math.max(drag.startStartTime + 0.1, Math.min(drag.startEndTime + deltaTime, drag.upperBound))
+      onUpdate(segment.id, { endTime: newEndTime })
     }
-    
-    const handleMouseUp = () => {
-      setDragType(null)
-      setIsDragging(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [isSelected, segment, pixelsPerSecond, duration, minTime, maxTime, onSelect, onUpdate])
+  }, [pixelsPerSecond, segment.id, onUpdate])
+  
+  const handlePointerUp = useCallback(() => {
+    dragRef.current = null
+    setDragType(null)
+    setIsDragging(false)
+  }, [])
   
   // Handle click to select
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -127,12 +140,15 @@ export function TimelineSegment({
       {isSelected && (
         <div
           className={cn(
-            'absolute left-0 top-0 bottom-0 cursor-ew-resize',
+            'absolute left-0 top-0 bottom-0 cursor-ew-resize touch-none',
             'bg-primary/50 hover:bg-primary/80 rounded-l transition-colors',
             dragType === 'left' && 'bg-primary'
           )}
           style={{ width: HANDLE_WIDTH }}
-          onMouseDown={(e) => handleMouseDown(e, 'left')}
+          onPointerDown={(e) => handlePointerDown(e, 'left')}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         />
       )}
       
@@ -140,12 +156,15 @@ export function TimelineSegment({
       {isSelected && (
         <div
           className={cn(
-            'absolute right-0 top-0 bottom-0 cursor-ew-resize',
+            'absolute right-0 top-0 bottom-0 cursor-ew-resize touch-none',
             'bg-primary/50 hover:bg-primary/80 rounded-r transition-colors',
             dragType === 'right' && 'bg-primary'
           )}
           style={{ width: HANDLE_WIDTH }}
-          onMouseDown={(e) => handleMouseDown(e, 'right')}
+          onPointerDown={(e) => handlePointerDown(e, 'right')}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         />
       )}
     </div>

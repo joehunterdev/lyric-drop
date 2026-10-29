@@ -1,4 +1,4 @@
-import { Settings, RefreshCw, X, Globe } from 'lucide-react'
+import { Settings, RefreshCw, X, Globe, Clapperboard, type LucideIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { NewTabLink } from '@/components/ui/new-tab-link'
@@ -9,6 +9,8 @@ import { useSettings } from '@/contexts'
 import { cn, canRecordFormat } from '@/utils'
 import type { ExportFileFormat } from '@/utils'
 
+export type AppView = 'editor' | 'converter'
+
 const EXPORT_FORMAT_HINTS: Record<ExportFileFormat, string> = {
   mp4: 'Works everywhere - Instagram, TikTok, X, phone galleries',
   webm: 'Fine for YouTube / desktop uploads; phones and Instagram may reject it',
@@ -17,9 +19,16 @@ const EXPORT_FORMAT_HINTS: Record<ExportFileFormat, string> = {
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
+  currentView: AppView
+  onViewChange: (view: AppView) => void
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+const VIEWS: { value: AppView; label: string; icon: LucideIcon }[] = [
+  { value: 'editor', label: 'Editor', icon: Clapperboard },
+  { value: 'converter', label: 'Converter', icon: RefreshCw },
+]
+
+export function Sidebar({ isOpen, onClose, currentView, onViewChange }: SidebarProps) {
   const { settings, toggleTranscoding, updateSetting } = useSettings()
   const exportFormatSupported = canRecordFormat(settings.exportFormat)
 
@@ -36,7 +45,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 right-0 h-full w-80 bg-card border-l border-border z-50',
+          'fixed top-0 right-0 h-full w-80 max-w-full overflow-y-auto bg-card border-l border-border z-50',
           'transform transition-transform duration-300 ease-in-out',
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
@@ -54,6 +63,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         
         {/* Settings Content */}
         <div className="p-4 space-y-6">
+          {/* View switcher - mobile only (desktop has it in the header) */}
+          <div className="md:hidden space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              View
+            </h3>
+            <nav className="flex flex-col" aria-label="View">
+              {VIEWS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-current={currentView === value ? 'page' : undefined}
+                  onClick={() => {
+                    onViewChange(value)
+                    onClose()
+                  }}
+                  className={cn(
+                    'flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors text-left',
+                    currentView === value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <div className="border-t border-border pt-4" />
+          </div>
+
           {/* Transcoding Section */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">

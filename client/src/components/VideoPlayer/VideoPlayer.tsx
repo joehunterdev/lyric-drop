@@ -2,6 +2,8 @@ import { useRef, useCallback } from 'react'
 import { Upload, FileVideo } from 'lucide-react'
 
 import { PlaybackControls } from './PlaybackControls'
+import { cn } from '@/utils/cn'
+import { StageSize } from '@/types'
 import {
   formatMaxFileSize,
   ALLOWED_VIDEO_EXTENSIONS,
@@ -19,6 +21,8 @@ interface VideoPlayerProps {
   onLoadFile: (file: File) => Promise<void>
   onTogglePlayPause: () => void
   onSeek: (time: number) => void
+  /** Mobile preview sizing: compact, full width, or cropped to fill */
+  stageSize: StageSize
 }
 
 export function VideoPlayer({
@@ -28,6 +32,7 @@ export function VideoPlayer({
   onLoadFile,
   onTogglePlayPause,
   onSeek,
+  stageSize,
 }: VideoPlayerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -51,15 +56,26 @@ export function VideoPlayer({
   }, [])
   
   return (
-    <div className="flex flex-col gap-4">
-      {/* Video Container */}
-      <div className="relative aspect-[9/16] max-h-[60vh] bg-black rounded-lg overflow-hidden">
+    <div className="flex flex-col gap-2 lg:gap-4">
+      {/* Video Container - tap/click to play or pause once loaded */}
+      <div
+        className={cn(
+          'relative aspect-[9/16] lg:max-h-[60vh] bg-black rounded-lg overflow-hidden',
+          stageSize === StageSize.COMPACT && 'max-h-[45vh]',
+          stageSize === StageSize.COVER && 'max-lg:aspect-auto max-lg:h-[45vh]',
+          mediaState.isLoaded && 'cursor-pointer'
+        )}
+        onClick={mediaState.isLoaded ? onTogglePlayPause : undefined}
+      >
         {mediaState.url ? (
           <>
             <video
               ref={mediaRef as React.RefObject<HTMLVideoElement | null>}
               src={mediaState.url}
-              className="w-full h-full object-contain"
+              className={cn(
+                'w-full h-full object-contain',
+                stageSize === StageSize.COVER && 'max-lg:object-cover'
+              )}
               playsInline
             />
             

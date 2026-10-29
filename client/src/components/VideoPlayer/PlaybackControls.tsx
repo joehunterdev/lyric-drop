@@ -12,12 +12,13 @@ interface PlaybackControlsProps {
 
 export function PlaybackControls({ mediaState, onTogglePlayPause, onSeek }: PlaybackControlsProps) {
   return (
-    <div className="flex items-center justify-center gap-4">
+    <div className="hidden lg:flex items-center justify-center gap-4">
       <Button
         variant="outline"
         size="icon"
         onClick={() => onSeek(0)}
         title="Restart"
+        className="hidden lg:inline-flex"
       >
         <RotateCcw className="w-4 h-4" />
       </Button>
@@ -25,7 +26,7 @@ export function PlaybackControls({ mediaState, onTogglePlayPause, onSeek }: Play
       <Button
         size="lg"
         onClick={onTogglePlayPause}
-        className="w-16 h-16 rounded-full"
+        className="hidden lg:inline-flex w-16 h-16 rounded-full"
       >
         {mediaState.isPlaying ? (
           <Pause className="w-6 h-6" />
