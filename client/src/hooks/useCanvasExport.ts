@@ -8,17 +8,24 @@ import {
   EXPORT_BITRATE,
   EXPORT_FRAMERATE,
   OUTPUT_FORMATS,
+  ensureFontLoaded,
 } from '@/utils'
 import { ExportStatus } from '@/types/enums'
 import type { ImageFit, OutputFormat } from '@/types/enums'
-import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox } from '@/types'
+import type { LyricSegment, ExportProgress, ImageBackground, FrameBackground, LyricBox, LyricStyle } from '@/types'
 
 /**
  * What the export draws behind the lyrics
  */
 export type ExportSource =
   | { kind: 'video' }
-  | { kind: 'image'; image: ImageBackground | null; format: OutputFormat; fit: ImageFit; box: LyricBox }
+  | {
+      kind: 'image'
+      image: ImageBackground | null
+      format: OutputFormat
+      fit: ImageFit
+      overlay: { style: LyricStyle; box: LyricBox }
+    }
 
 interface UseCanvasExportOptions {
   /** The <video> (video mode) or <audio> (image mode) element driving playback */
@@ -165,6 +172,14 @@ export function useCanvasExport({
         }
       }
 
+      if (source.kind === 'image') {
+        // Canvas silently falls back if the font isn't loaded - never export in the wrong font
+        const { fontFamily, fontWeight } = source.overlay.style.text
+        if (!(await ensureFontLoaded(fontFamily, fontWeight))) {
+          throw new Error(`The font "${fontFamily}" couldn't be loaded. Check your connection or pick another font.`)
+        }
+      }
+
       logger.info('Starting canvas export', { source: source.kind, width, height, duration })
 
       // Create canvas
@@ -303,7 +318,7 @@ export function useCanvasExport({
         throw new Error('Could not play media - check browser autoplay settings')
       }
 
-      const box = source.kind === 'image' ? source.box : undefined
+      const overlay = source.kind === 'image' ? source.overlay : undefined
 
       // Animation loop - draw frames to canvas. Redraw every frame even for a
       // still image: captureStream only emits frames when the canvas is painted.
@@ -314,7 +329,7 @@ export function useCanvasExport({
         renderFrame(ctx, width, height, {
           background,
           text: activeSegment?.text ?? null,
-          box,
+          overlay,
         })
 
         // Update progress

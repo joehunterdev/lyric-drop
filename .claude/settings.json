@@ -5,7 +5,10 @@
       "Bash(git mv *)",
       "Bash(sed -i 's/mediaState: videoState,/mediaState,/; s/videoState/mediaState/g' src/App.tsx)",
       "Bash(npx eslint *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(git status *)"
     ]
   }
 }

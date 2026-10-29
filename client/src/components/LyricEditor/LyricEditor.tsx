@@ -9,6 +9,12 @@ import { cn, formatTime } from '@/utils'
 import type { LyricSegment, LyricSection } from '@/types'
 import { SegmentType } from '@/types/enums'
 
+/** Paste box grows with its content up to a cap, then scrolls - a whole song won't push the buttons away */
+const IMPORT_TEXTAREA_CLASS = 'min-h-[100px] max-h-[40vh] overflow-y-auto resize-none text-sm'
+
+/** Import / Cancel row stays pinned to the bottom of the panel while the paste box is in view */
+const IMPORT_ACTIONS_CLASS = 'sticky bottom-0 z-10 flex gap-2 bg-card py-2'
+
 interface LyricEditorProps {
   segments: LyricSegment[]
   lyricSections: LyricSection[]
@@ -218,7 +224,7 @@ export function LyricEditor({
   }
   
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex-1 min-h-0 flex flex-col">
       <CardHeader className="pb-2 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
@@ -237,7 +243,7 @@ export function LyricEditor({
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1 overflow-hidden p-0">
+      <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
         <ScrollArea className="h-full px-4">
           <div className="space-y-3 pb-4">
             {/* Lyric Sections with nested segments */}
@@ -304,10 +310,10 @@ export function LyricEditor({
                             placeholder="Paste lyrics here... Each line becomes a segment."
                             value={lyricsInput}
                             onChange={(e) => setLyricsInput(e.target.value)}
-                            className="min-h-[100px] resize-none text-sm"
+                            className={IMPORT_TEXTAREA_CLASS}
                             autoFocus={isNewSection}
                           />
-                          <div className="flex gap-2">
+                          <div className={IMPORT_ACTIONS_CLASS}>
                             <Button
                               size="sm"
                               onClick={() => handleImportToSection(section.id)}
@@ -349,10 +355,10 @@ export function LyricEditor({
                                 placeholder="Paste additional lyrics here..."
                                 value={lyricsInput}
                                 onChange={(e) => setLyricsInput(e.target.value)}
-                                className="min-h-[80px] resize-none text-sm"
+                                className={IMPORT_TEXTAREA_CLASS}
                                 autoFocus
                               />
-                              <div className="flex gap-2">
+                              <div className={IMPORT_ACTIONS_CLASS}>
                                 <Button
                                   size="sm"
                                   onClick={() => handleImportToSection(section.id)}

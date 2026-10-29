@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import {
   Upload,
   ImageIcon,
@@ -6,11 +6,17 @@ import {
   AlignHorizontalJustifyCenter,
   AlignVerticalJustifyCenter,
   RotateCcw,
+  Smartphone,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { PlaybackControls } from '@/components/VideoPlayer/PlaybackControls'
 import { LyricBoxEditor } from './LyricBoxEditor'
+import { SafeZoneOverlay } from './SafeZoneOverlay'
+import { useOverlay } from '@/contexts'
+import { useFontsVersion } from '@/hooks'
+import { cn } from '@/utils/cn'
 import {
   renderFrame,
   formatMaxFileSize,
@@ -28,12 +34,12 @@ interface ImageStageProps {
   mediaState: MediaState
   image: ImageBackground | null
   activeSegment: LyricSegment | null
+  /** Line shown faded while paused with no lyric on screen, so style edits are visible */
+  sampleText: string
   format: OutputFormat
   fit: ImageFit
-  lyricBox: LyricBox
   onFormatChange: (format: OutputFormat) => void
   onFitChange: (fit: ImageFit) => void
-  onLyricBoxChange: (box: LyricBox) => void
   onLoadImage: (file: File) => Promise<void>
   onLoadAudio: (file: File) => Promise<void>
   onTogglePlayPause: () => void
@@ -54,12 +60,11 @@ export function ImageStage({
   mediaState,
   image,
   activeSegment,
+  sampleText,
   format,
   fit,
-  lyricBox,
   onFormatChange,
   onFitChange,
-  onLyricBoxChange,
   onLoadImage,
   onLoadAudio,
   onTogglePlayPause,
@@ -69,10 +74,20 @@ export function ImageStage({
   const imageInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
 
-  const { width, height } = OUTPUT_FORMATS[format]
-  const text = activeSegment?.text ?? null
+  const [showSafeZones, setShowSafeZones] = useState(false)
+  const { style, lyricBoxes, setLyricBox } = useOverlay()
+  const fontsVersion = useFontsVersion()
 
-  // Redraw the preview whenever anything visible changes
+  const { width, height } = OUTPUT_FORMATS[format]
+  const lyricBox = lyricBoxes[format]
+  const onLyricBoxChange = useCallback((box: LyricBox) => setLyricBox(format, box), [setLyricBox, format])
+
+  // While paused with nothing on screen, show a faded sample line to style against
+  const activeText = activeSegment?.text ?? null
+  const isSample = !activeText && !mediaState.isPlaying
+  const text = activeText ?? (isSample ? sampleText : null)
+
+  // Redraw the preview whenever anything visible changes (incl. a font finishing loading)
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
@@ -81,13 +96,14 @@ export function ImageStage({
       renderFrame(ctx, width, height, {
         background: { kind: 'image', source: image.bitmap, fit },
         text,
-        box: lyricBox,
+        overlay: { style, box: lyricBox },
+        ghost: isSample,
       })
     } else {
       ctx.fillStyle = '#000000'
       ctx.fillRect(0, 0, width, height)
     }
-  }, [image, fit, width, height, text, lyricBox])
+  }, [image, fit, width, height, text, isSample, style, lyricBox, fontsVersion])
 
   const handleFileSelect = useCallback(
     (onLoad: (file: File) => Promise<void>) => async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,30 +127,26 @@ export function ImageStage({
     <div className="flex flex-col gap-4">
       {/* Format + fit options */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1">
-          {Object.values(OutputFormat).map(value => (
-            <Button
-              key={value}
-              variant={format === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => onFormatChange(value)}
-            >
-              {OUTPUT_FORMATS[value].label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {Object.values(ImageFit).map(value => (
-            <Button
-              key={value}
-              variant={fit === value ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => onFitChange(value)}
-            >
-              {FIT_LABELS[value]}
-            </Button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Output format"
+          size="md"
+          value={format}
+          onChange={onFormatChange}
+          options={Object.values(OutputFormat).map(value => ({
+            value,
+            label: OUTPUT_FORMATS[value].label,
+          }))}
+        />
+        <SegmentedControl
+          label="Image fit"
+          size="md"
+          value={fit}
+          onChange={onFitChange}
+          options={Object.values(ImageFit).map(value => ({
+            value,
+            label: FIT_LABELS[value],
+          }))}
+        />
       </div>
 
       {/* Lyric box position */}
@@ -168,6 +180,19 @@ export function ImageStage({
           >
             <RotateCcw className="w-4 h-4" />
           </Button>
+          {format === OutputFormat.REEL && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn('h-7 ml-auto', showSafeZones && 'bg-muted text-foreground')}
+              onClick={() => setShowSafeZones(on => !on)}
+              aria-pressed={showSafeZones}
+              title="Show where Instagram / TikTok UI covers the frame"
+            >
+              <Smartphone className="w-4 h-4 mr-1" />
+              Safe zones
+            </Button>
+          )}
         </div>
       )}
 
@@ -186,6 +211,8 @@ export function ImageStage({
             height={height}
             className="w-full h-full block"
           />
+
+          {image && showSafeZones && format === OutputFormat.REEL && <SafeZoneOverlay />}
 
           {image && (
             <LyricBoxEditor

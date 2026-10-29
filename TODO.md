@@ -69,6 +69,12 @@
 - [x] Progress tracking with cancel option
 
 ---
+## Todo 0.2.7
+- Centered click to load video upload trigger should (if possible detect image or video) rather than forcing the selection by button
+- Key board controls 
+  - Spacebar to stop
+- how does the upload font work does this imply securty vulne
+---
 
 ## Backlog
 

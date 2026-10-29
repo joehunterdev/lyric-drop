@@ -1,21 +1,25 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Settings, FileVideo, ImageIcon } from 'lucide-react'
+import { Settings, FileVideo, ImageIcon, FileText, Palette } from 'lucide-react'
 
-import { useMediaPlayer, useImageBackground, useTimeline } from '@/hooks'
+import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport } from '@/hooks'
 import type { ExportSource } from '@/hooks/useCanvasExport'
-import { SettingsProvider } from '@/contexts'
+import { SettingsProvider, OverlayProvider, useOverlay } from '@/contexts'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { ImageStage } from '@/components/ImageStage'
 import { Timeline } from '@/components/Timeline'
 import { LyricEditor } from '@/components/LyricEditor'
-import { ExportButton } from '@/components/ExportButton'
+import { StylePanel } from '@/components/StylePanel'
+import { ExportButton, ExportProgress } from '@/components/ExportButton'
 import { Sidebar, LanguageNav } from '@/components/layout'
 import { VideoConverter } from '@/components/VideoConverter'
 import { Button } from '@/components/ui/button'
+import { NewTabLink } from '@/components/ui/new-tab-link'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SourceMode, OutputFormat, ImageFit } from '@/types'
-import type { LyricBox } from '@/types'
-import { OUTPUT_FORMATS } from '@/utils'
 import './index.css'
+
+/** Shown in the paused preview when no lyric is selected or on screen */
+const SAMPLE_LYRIC = 'Sample lyric line'
 
 type AppView = 'editor' | 'converter'
 
@@ -25,15 +29,8 @@ function AppContent() {
   const [sourceMode, setSourceMode] = useState<SourceMode>(SourceMode.VIDEO)
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(OutputFormat.REEL)
   const [imageFit, setImageFit] = useState<ImageFit>(ImageFit.COVER)
-  const [lyricBoxes, setLyricBoxes] = useState<Record<OutputFormat, LyricBox>>({
-    reel: OUTPUT_FORMATS.reel.lyricBox,
-    youtube: OUTPUT_FORMATS.youtube.lyricBox,
-  })
+  const { style, lyricBoxes } = useOverlay()
   const lyricBox = lyricBoxes[outputFormat]
-
-  const setLyricBox = useCallback((box: LyricBox) => {
-    setLyricBoxes(prev => ({ ...prev, [outputFormat]: box }))
-  }, [outputFormat])
 
   const {
     mediaRef,
@@ -57,9 +54,9 @@ function AppContent() {
 
   const exportSource = useMemo<ExportSource>(() => (
     sourceMode === SourceMode.IMAGE
-      ? { kind: 'image', image, format: outputFormat, fit: imageFit, box: lyricBox }
+      ? { kind: 'image', image, format: outputFormat, fit: imageFit, overlay: { style, box: lyricBox } }
       : { kind: 'video' }
-  ), [sourceMode, image, outputFormat, imageFit, lyricBox])
+  ), [sourceMode, image, outputFormat, imageFit, style, lyricBox])
 
   const {
     segments,
@@ -84,12 +81,23 @@ function AppContent() {
     canUndoRetime,
   } = useTimeline(mediaState.currentTime)
 
+  const sampleText = segments.find(seg => seg.id === selectedSegmentId)?.text || SAMPLE_LYRIC
+
+  // Export lives here so the header can show its progress next to the button
+  const { exportVideo, cancelExport, progress: exportProgress } = useCanvasExport({
+    mediaRef,
+    segments,
+    source: exportSource,
+  })
+  const canExport = mediaState.isLoaded && segments.length > 0 &&
+    (exportSource.kind === 'video' || !!exportSource.image)
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="border-b border-border px-4 py-3 bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <img 
               src="/logo.png" 
               alt="Joe Hunter" 
@@ -99,6 +107,14 @@ function AppContent() {
               Lyric Drop
             </h1>
           </div>
+          {/* Export progress - only takes space while exporting */}
+          {currentView === 'editor' && (
+            <ExportProgress
+              progress={exportProgress}
+              onDismiss={cancelExport}
+              className="flex-1 max-w-md mx-6"
+            />
+          )}
           <div className="flex items-center gap-2">
             {/* Content Pages Nav (EN / ES dropdowns) */}
             <LanguageNav />
@@ -121,11 +137,10 @@ function AppContent() {
             </div>
             {currentView === 'editor' && (
               <ExportButton
-                mediaRef={mediaRef}
-                segments={segments}
-                source={exportSource}
-                disabled={!mediaState.isLoaded}
-                compact
+                progress={exportProgress}
+                onExport={exportVideo}
+                onCancel={cancelExport}
+                disabled={!canExport}
               />
             )}
             <Button
@@ -174,12 +189,11 @@ function AppContent() {
                     mediaState={mediaState}
                     image={image}
                     activeSegment={activeSegment}
+                    sampleText={sampleText}
                     format={outputFormat}
                     fit={imageFit}
                     onFormatChange={setOutputFormat}
                     onFitChange={setImageFit}
-                lyricBox={lyricBox}
-                onLyricBoxChange={setLyricBox}
                     onLoadImage={loadImage}
                     onLoadAudio={loadAudio}
                     onTogglePlayPause={togglePlayPause}
@@ -197,25 +211,40 @@ function AppContent() {
                 )}
               </div>
 
-              {/* Lyric Editor - Right sidebar; capped height + internal scroll on desktop */}
-              <div className="lg:col-span-1 min-h-[400px] lg:max-h-[80vh] overflow-hidden">
-                <LyricEditor
-                  segments={segments}
-                  lyricSections={lyricSections}
-                  selectedSegmentId={selectedSegmentId}
-                  selectedSectionId={selectedSectionId}
-                  videoDuration={mediaState.duration}
-                  currentTime={mediaState.currentTime}
-                  onImportLyrics={importLyrics}
-                  onAppendLyrics={appendLyrics}
-                  onSelectSegment={selectSegment}
-                  onUpdateSegment={updateSegment}
-                  onRemoveSegment={removeSegment}
-                  onInsertSpacer={insertSpacer}
-                  onAddLyricSection={addLyricSection}
-                  onRemoveLyricSection={removeLyricSection}
-                  onSelectSection={selectLyricSection}
-                />
+              {/* Lyrics / Style - Right sidebar; capped height + internal scroll on desktop */}
+              <div className="lg:col-span-1 min-h-[400px] lg:max-h-[80vh] overflow-hidden flex flex-col">
+                <Tabs defaultValue="lyrics" className="flex-1 min-h-0">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="lyrics">
+                      <FileText /> Lyrics
+                    </TabsTrigger>
+                    <TabsTrigger value="style">
+                      <Palette /> Style
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="lyrics" className="min-h-0 overflow-hidden flex flex-col">
+                    <LyricEditor
+                      segments={segments}
+                      lyricSections={lyricSections}
+                      selectedSegmentId={selectedSegmentId}
+                      selectedSectionId={selectedSectionId}
+                      videoDuration={mediaState.duration}
+                      currentTime={mediaState.currentTime}
+                      onImportLyrics={importLyrics}
+                      onAppendLyrics={appendLyrics}
+                      onSelectSegment={selectSegment}
+                      onUpdateSegment={updateSegment}
+                      onRemoveSegment={removeSegment}
+                      onInsertSpacer={insertSpacer}
+                      onAddLyricSection={addLyricSection}
+                      onRemoveLyricSection={removeLyricSection}
+                      onSelectSection={selectLyricSection}
+                    />
+                  </TabsContent>
+                  <TabsContent value="style" className="min-h-0 overflow-hidden flex flex-col">
+                    <StylePanel isImageMode={sourceMode === SourceMode.IMAGE} />
+                  </TabsContent>
+                </Tabs>
               </div>
             </div>
 
@@ -255,14 +284,12 @@ function AppContent() {
       <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
           <span className="text-primary font-semibold">Lyric Drop</span> v0.2.0 • Built by{' '}
-          <a 
-            href="https://joehunter.dev" 
-            target="_blank" 
-            rel="noopener noreferrer"
+          <NewTabLink
+            href="https://joehunter.dev"
             className="text-primary hover:text-primary/80 transition-colors"
           >
             Joe Hunter
-          </a>
+          </NewTabLink>
         </div>
       </footer>
     </div>
@@ -272,7 +299,9 @@ function AppContent() {
 function App() {
   return (
     <SettingsProvider>
-      <AppContent />
+      <OverlayProvider>
+        <AppContent />
+      </OverlayProvider>
     </SettingsProvider>
   )
 }

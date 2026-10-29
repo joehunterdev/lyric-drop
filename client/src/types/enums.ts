@@ -80,6 +80,26 @@ export const TextAlign = {
 export type TextAlign = (typeof TextAlign)[keyof typeof TextAlign]
 
 /**
+ * What is drawn behind the lyric text
+ */
+export const BackgroundMode = {
+  NONE: 'none',
+  BOX: 'box',
+  LINE: 'line',
+  BAND: 'band',
+} as const
+export type BackgroundMode = (typeof BackgroundMode)[keyof typeof BackgroundMode]
+
+/**
+ * Text case transform for lyrics
+ */
+export const TextTransform = {
+  NONE: 'none',
+  UPPERCASE: 'uppercase',
+} as const
+export type TextTransform = (typeof TextTransform)[keyof typeof TextTransform]
+
+/**
  * Vertical position for lyrics
  */
 export const VerticalPosition = {

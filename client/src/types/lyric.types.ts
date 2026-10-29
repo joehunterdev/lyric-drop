@@ -1,4 +1,4 @@
-import type { TextAlign, VerticalPosition, SegmentType, ImageFit } from './enums'
+import type { TextAlign, SegmentType, ImageFit, BackgroundMode, TextTransform } from './enums'
 
 /**
  * A single lyric segment with timing information
@@ -72,18 +72,81 @@ export interface Project {
   selectedSegmentId: string | null
 }
 
-/**
- * Style options for Lyric Drop
+/*
+ * Lyric overlay style.
+ * Pixel values are "reference px" at a 1080px shorter side and scale with the
+ * frame, so one style looks the same in Reel, YouTube and the preview canvas.
  */
-export interface LyricStyle {
-  fontSize: number
+
+export interface LyricTextStyle {
+  /** CSS font family - a curated font, a system font or an uploaded font's family */
   fontFamily: string
+  fontWeight: number
+  /** Reference px */
+  fontSize: number
+  /** Shrink the text to fit the lyric box height */
+  autoFit: boolean
+  /** Hex colour */
   color: string
-  backgroundColor: string
-  backgroundOpacity: number
-  textAlign: TextAlign
-  verticalPosition: VerticalPosition
+  align: TextAlign
+  transform: TextTransform
+  /** Line height multiplier */
+  lineHeight: number
+  /** Reference px */
+  letterSpacing: number
+}
+
+export interface LyricBackgroundStyle {
+  mode: BackgroundMode
+  color: string
+  /** 0-1 */
+  opacity: number
+  /** Reference px */
+  radius: number
+  /** Reference px */
   padding: number
+}
+
+export interface LyricOutlineStyle {
+  enabled: boolean
+  color: string
+  /** Reference px */
+  width: number
+}
+
+export interface LyricShadowStyle {
+  enabled: boolean
+  color: string
+  /** Reference px */
+  blur: number
+  /** Reference px */
+  offsetY: number
+}
+
+export interface LyricStyle {
+  text: LyricTextStyle
+  background: LyricBackgroundStyle
+  outline: LyricOutlineStyle
+  shadow: LyricShadowStyle
+}
+
+/**
+ * A named, reusable style
+ */
+export interface StylePreset {
+  id: string
+  name: string
+  style: LyricStyle
+}
+
+/**
+ * A font the user uploaded, registered with the FontFace API
+ */
+export interface CustomFont {
+  /** Namespaced CSS family, e.g. "LD Custom - MyFont" */
+  family: string
+  /** Display name (from the file name) */
+  name: string
 }
 
 /**

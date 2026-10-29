@@ -1,6 +1,8 @@
 import { LYRIC_FONT_SIZE_PERCENT, LYRIC_BG_OPACITY } from './config'
+import { drawStyledLyric } from './overlay/drawLyric'
+import { wrapText } from './overlay/layoutLyric'
 import { ImageFit } from '@/types/enums'
-import type { FrameBackground, LyricBox } from '@/types'
+import type { FrameBackground, LyricBox, LyricStyle } from '@/types'
 
 /** Bottom margin used for video sources (fraction of height) */
 const VIDEO_BOTTOM_MARGIN = 0.12
@@ -8,15 +10,20 @@ const VIDEO_BOTTOM_MARGIN = 0.12
 /** Lyric lines wrap at this fraction of the frame width (video sources) */
 const MAX_TEXT_WIDTH = 0.85
 
-/** Text shrinks to fit its box, but never below this fraction of the base size */
-const MIN_FONT_SCALE = 0.5
+/** Opacity of the sample line shown in the paused preview */
+const GHOST_OPACITY = 0.55
 
 interface RenderFrameOptions {
   background: FrameBackground
   /** Lyric text to draw, or null for none */
   text: string | null
-  /** Lyric area for image mode; omitted for video sources (bottom-anchored layout) */
-  box?: LyricBox
+  /**
+   * Styled lyric for image mode. Omitted for video sources, which keep the
+   * original bottom-anchored look until video gets the canvas preview.
+   */
+  overlay?: { style: LyricStyle; box: LyricBox }
+  /** Draw the lyric faded - a preview-only sample line */
+  ghost?: boolean
 }
 
 /**
@@ -27,7 +34,7 @@ export function renderFrame(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  { background, text, box }: RenderFrameOptions
+  { background, text, overlay, ghost = false }: RenderFrameOptions
 ): void {
   if (background.kind === 'video') {
     ctx.drawImage(background.source, 0, 0, width, height)
@@ -35,9 +42,16 @@ export function renderFrame(
     ctx.drawImage(getImageBackdrop(background.source, background.fit, width, height), 0, 0)
   }
 
-  if (text) {
-    drawLyric(ctx, width, height, text, box)
+  if (!text) return
+
+  ctx.save()
+  if (ghost) ctx.globalAlpha = GHOST_OPACITY
+  if (overlay) {
+    drawStyledLyric(ctx, width, height, text, overlay.style, overlay.box)
+  } else {
+    drawVideoLyric(ctx, width, height, text)
   }
+  ctx.restore()
 }
 
 // ===========================================
@@ -115,52 +129,31 @@ function drawFitted(
 }
 
 // ===========================================
-// Lyric
+// Video lyric (original fixed look)
 // ===========================================
 
-function drawLyric(
+function drawVideoLyric(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  text: string,
-  box?: LyricBox
+  text: string
 ): void {
-  // Video keeps sizing relative to height; image mode sizes from the shorter
-  // side so text looks the same in 9:16 and 16:9
-  const basis = box ? Math.min(width, height) : height
-  const baseFontSize = Math.round(basis * (LYRIC_FONT_SIZE_PERCENT / 100))
-  const padding = Math.round(basis * 0.02)
+  const fontSize = Math.round(height * (LYRIC_FONT_SIZE_PERCENT / 100))
+  const padding = Math.round(height * 0.02)
 
-  // Area the text lives in (pixels)
-  const area = box
-    ? { x: box.x * width, y: box.y * height, width: box.width * width, height: box.height * height }
-    : { x: width * (1 - MAX_TEXT_WIDTH) / 2, y: 0, width: width * MAX_TEXT_WIDTH, height }
-
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  // Wrap to the area width; in a box, shrink the font until the text fits its height
-  let fontSize = baseFontSize
-  let lines: string[]
-  for (;;) {
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`
-    lines = wrapText(ctx, text, area.width - padding * 2)
-    const textHeight = lines.length * fontSize * 1.3 + padding * 2
-    if (!box || textHeight <= area.height || fontSize <= baseFontSize * MIN_FONT_SCALE) break
-    fontSize = Math.max(Math.round(fontSize * 0.92), Math.ceil(baseFontSize * MIN_FONT_SCALE))
-  }
-
+  const lines = wrapText(ctx, text, width * MAX_TEXT_WIDTH - padding * 2)
   const lineHeight = fontSize * 1.3
   const maxWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0)
 
   const boxWidth = maxWidth + padding * 2
   const boxHeight = lines.length * lineHeight + padding * 2
-  const boxX = area.x + (area.width - boxWidth) / 2
-  const boxY = box
-    ? area.y + (area.height - boxHeight) / 2
-    : height - Math.round(height * VIDEO_BOTTOM_MARGIN) - boxHeight
+  const boxX = (width - boxWidth) / 2
+  const boxY = height - Math.round(height * VIDEO_BOTTOM_MARGIN) - boxHeight
 
-  // Semi-transparent background (from config)
   ctx.fillStyle = `rgba(0, 0, 0, ${LYRIC_BG_OPACITY})`
   ctx.beginPath()
   ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8)
@@ -169,29 +162,6 @@ function drawLyric(
   ctx.fillStyle = '#ffffff'
   lines.forEach((line, index) => {
     const y = boxY + padding + lineHeight * 0.5 + index * lineHeight
-    ctx.fillText(line, area.x + area.width / 2, y)
+    ctx.fillText(line, width / 2, y)
   })
-}
-
-/**
- * Split text into lines that fit maxWidth, honouring explicit line breaks
- */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const result: string[] = []
-
-  for (const paragraph of text.split('\n')) {
-    let line = ''
-    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      const candidate = line ? `${line} ${word}` : word
-      if (line && ctx.measureText(candidate).width > maxWidth) {
-        result.push(line)
-        line = word
-      } else {
-        line = candidate
-      }
-    }
-    result.push(line)
-  }
-
-  return result
 }

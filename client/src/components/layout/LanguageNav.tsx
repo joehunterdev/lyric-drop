@@ -2,41 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { NewTabLink } from '@/components/ui/new-tab-link'
+import { CONTENT_PAGE_GROUPS, type ContentPageGroup } from './contentPages'
 import { cn } from '@/utils'
 
-interface NavLink {
-  label: string
-  href: string
-}
-
-interface LanguageGroup {
-  code: string
-  label: string
-  links: NavLink[]
-}
-
-const LANGUAGE_GROUPS: LanguageGroup[] = [
-  {
-    code: 'en',
-    label: 'EN',
-    links: [
-      { label: 'Guide', href: '/en/how-to-add-lyrics-to-tiktok-videos.html' },
-      { label: 'Tools', href: '/en/best-lyric-video-tools.html' },
-      { label: 'About', href: '/en/about-lyric-drop.html' },
-    ],
-  },
-  {
-    code: 'es',
-    label: 'ES',
-    links: [
-      { label: 'Guía', href: '/es/como-agregar-letras-a-videos-tiktok.html' },
-      { label: 'Herramientas', href: '/es/mejores-herramientas-videos-letras.html' },
-      { label: 'Acerca de', href: '/es/acerca-de-lyric-drop.html' },
-    ],
-  },
-]
-
-function NavDropdown({ group }: { group: LanguageGroup }) {
+function NavDropdown({ group }: { group: ContentPageGroup }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -80,7 +50,7 @@ function NavDropdown({ group }: { group: LanguageGroup }) {
           role="menu"
         >
           {group.links.map(link => (
-            <a
+            <NewTabLink
               key={link.href}
               href={link.href}
               role="menuitem"
@@ -88,7 +58,7 @@ function NavDropdown({ group }: { group: LanguageGroup }) {
               onClick={() => setOpen(false)}
             >
               {link.label}
-            </a>
+            </NewTabLink>
           ))}
         </div>
       )}
@@ -99,7 +69,7 @@ function NavDropdown({ group }: { group: LanguageGroup }) {
 export function LanguageNav() {
   return (
     <nav className="hidden md:flex items-center gap-1" aria-label="Content pages">
-      {LANGUAGE_GROUPS.map(group => (
+      {CONTENT_PAGE_GROUPS.map(group => (
         <NavDropdown key={group.code} group={group} />
       ))}
     </nav>
