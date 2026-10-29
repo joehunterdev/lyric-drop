@@ -10,12 +10,14 @@ import type { LyricSegment, LyricSection } from '@/types'
 import { SegmentType } from '@/types/enums'
 
 /** Paste box grows with its content up to a cap, then scrolls - a whole song won't push the buttons away */
-const IMPORT_TEXTAREA_CLASS = 'min-h-[100px] max-h-[40vh] overflow-y-auto resize-none text-sm'
+const IMPORT_TEXTAREA_CLASS = 'min-h-[100px] max-h-[calc(var(--app-height,100dvh)*0.4)] overflow-y-auto resize-none text-base md:text-sm'
 
 /** Import / Cancel row stays pinned to the bottom of the panel while the paste box is in view */
 const IMPORT_ACTIONS_CLASS = 'sticky bottom-0 z-10 flex gap-2 bg-card py-2'
 
 interface LyricEditorProps {
+  /** Inside the mobile sheet, which already shows the "Lyrics" title - drops the panel's own heading */
+  embedded?: boolean
   segments: LyricSegment[]
   lyricSections: LyricSection[]
   selectedSegmentId: string | null
@@ -34,6 +36,7 @@ interface LyricEditorProps {
 }
 
 export function LyricEditor({
+  embedded = false,
   segments,
   lyricSections,
   selectedSegmentId,
@@ -163,7 +166,7 @@ export function LyricEditor({
                 value={segment.text}
                 onChange={(e) => onUpdateSegment(segment.id, { text: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="min-h-[50px] text-sm"
+                className="min-h-[50px] text-base md:text-sm"
                 placeholder="Enter lyrics..."
               />
             ) : (
@@ -192,13 +195,15 @@ export function LyricEditor({
   // No sections yet - show "Add Lyric Section" prompt
   if (lyricSections.length === 0 && segments.length === 0) {
     return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Lyrics
-          </CardTitle>
-        </CardHeader>
+      <Card className={cn('h-full', embedded && 'border-0 py-3 shadow-none')}>
+        {!embedded && (
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Lyrics
+            </CardTitle>
+          </CardHeader>
+        )}
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Add a lyric section to get started. Sections define where lyrics appear in your video.
@@ -224,11 +229,11 @@ export function LyricEditor({
   }
   
   return (
-    <Card className="h-full flex-1 min-h-0 flex flex-col">
-      <CardHeader className="pb-2 flex-shrink-0">
+    <Card className={cn('h-full flex-1 min-h-0 flex flex-col', embedded && 'gap-0 border-0 py-0 shadow-none')}>
+      <CardHeader className={cn('flex-shrink-0', embedded ? 'py-2' : 'pb-2')}>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">
-            Lyrics ({segments.filter(s => s.type === SegmentType.LYRIC).length})
+          <CardTitle className={embedded ? 'text-sm font-normal text-muted-foreground' : 'text-lg'}>
+            {embedded ? '' : 'Lyrics '}({segments.filter(s => s.type === SegmentType.LYRIC).length}{embedded ? ' lines' : ''})
           </CardTitle>
           <Button
             variant="ghost"

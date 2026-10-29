@@ -29,6 +29,11 @@
 # Never list directory contents
 Options -Indexes
 
+# Web app manifest MIME type
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
 # Block dotfiles (.env, .git, ...) but keep /.well-known reachable
 <IfModule mod_rewrite.c>
   RewriteCond %{REQUEST_URI} !^/\.well-known/ [NC]

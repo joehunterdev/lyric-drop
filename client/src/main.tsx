@@ -13,3 +13,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Offline support: cache the app after the first visit (production only, so dev HMR isn't cached)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {
+      // Offline support is optional - the app works the same without it
+    })
+  })
+}

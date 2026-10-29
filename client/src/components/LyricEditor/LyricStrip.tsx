@@ -109,7 +109,10 @@ export function LyricStrip({
         <Button
           className="w-full"
           disabled={videoDuration === 0}
-          onClick={() => onAddLyricSection(0, videoDuration)}
+          onClick={() => {
+            onAddLyricSection(0, videoDuration)
+            onOpenFull()
+          }}
         >
           <Layers className="w-4 h-4 mr-2" />
           Add Lyric Section
@@ -188,7 +191,7 @@ export function LyricStrip({
           <Textarea
             value={selected.text}
             onChange={e => onUpdateSegment(selected.id, { text: e.target.value })}
-            className="min-h-[40px] flex-1 text-sm"
+            className="min-h-[40px] flex-1 text-base md:text-sm"
             placeholder="Enter lyrics..."
             rows={2}
           />
@@ -225,7 +228,7 @@ export function LyricStrip({
               addLines()
             }
           }}
-          className="min-h-[40px] flex-1 resize-none text-sm"
+          className="min-h-[40px] flex-1 resize-none text-base md:text-sm"
           placeholder="Type or paste a line..."
           rows={1}
         />

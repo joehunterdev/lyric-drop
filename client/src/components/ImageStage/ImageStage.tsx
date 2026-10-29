@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { PlaybackControls } from '@/components/VideoPlayer/PlaybackControls'
+import { StagePlayButton } from '@/components/VideoPlayer/StagePlayButton'
 import { LyricBoxEditor } from './LyricBoxEditor'
 import { SafeZoneOverlay } from './SafeZoneOverlay'
 import { useOverlay } from '@/contexts'
@@ -382,7 +383,8 @@ export function ImageStage({
       <div
         className={cn(
           'relative flex justify-center rounded-lg overflow-hidden',
-          image ? 'lg:bg-black' : 'bg-black',
+          // Empty on mobile: no black box, just an outlined drop area
+          image ? 'lg:bg-black' : 'max-lg:border max-lg:border-dashed max-lg:border-border lg:bg-black',
           // Cover: fixed height, frame stays full width and the overflow is cropped (centred)
           stageSize === StageSize.COVER && 'max-lg:h-[45vh] max-lg:items-center',
           image && mediaState.isLoaded && 'cursor-pointer'
@@ -403,7 +405,7 @@ export function ImageStage({
             ref={canvasRef}
             width={width}
             height={height}
-            className="w-full h-full block"
+            className={cn('w-full h-full block', !image && 'max-lg:opacity-0')}
           />
 
           {image && showSafeZones && format === OutputFormat.REEL && <SafeZoneOverlay />}
@@ -418,13 +420,19 @@ export function ImageStage({
           )}
         </div>
 
+        {image && mediaState.isLoaded && (
+          <StagePlayButton isPlaying={mediaState.isPlaying} onToggle={onTogglePlayPause} />
+        )}
+
         {!image && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-card/50 transition-colors"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-muted-foreground cursor-pointer hover:bg-card/50 transition-colors"
             onClick={() => stageInputRef.current?.click()}
           >
             <Upload className="w-12 h-12 mb-4" />
-            <p className="text-lg font-medium">Click to upload image or video</p>
+            <p className="text-lg font-medium">
+              <span className="lg:hidden">Tap</span><span className="hidden lg:inline">Click</span> to upload image or video
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
               <ImageIcon className="w-3 h-3 inline mr-1" />
               {[...ALLOWED_IMAGE_EXTENSIONS, ...ALLOWED_VIDEO_EXTENSIONS].join(', ')} (max {formatMaxFileSize()})

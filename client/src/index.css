@@ -103,6 +103,24 @@
   *::after {
     @apply border-border;
   }
+
+  /* Never scroll sideways: off-canvas panels and wide children must not widen the page */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  /* Mobile: the app shell is exactly the visible height and only inner areas scroll
+     (see the shell in App.tsx). Desktop keeps normal page scrolling. */
+  @media (max-width: 1023.98px) {
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+  }
   
   body {
     @apply bg-background text-foreground;

@@ -1,18 +1,15 @@
-import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
+import { useRef, useCallback, useMemo, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { Pause, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine, ArrowLeft } from 'lucide-react'
+import { Space, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine, ArrowLeft, ArrowLeftToLine, ArrowRightToLine, RotateCcw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { TimelineSegment } from './TimelineSegment'
 import { TimelineLyricSection } from './TimelineLyricSection'
-import { RetimePanel } from './RetimePanel'
-import { TimelineTrimHandle } from './TimelineTrimHandle'
 import { StageSizeToggle } from '@/components/VideoPlayer/StageSizeToggle'
 import { TimelineWaveform } from './TimelineWaveform'
 import { cn } from '@/utils/cn'
-import { formatTime, retimeFollowingSegments } from '@/utils'
-import type { RetimeOptions } from '@/utils'
+import { formatTime } from '@/utils'
 import type { Waveform } from '@/hooks'
 
 /** While scrubbing, pointer within this many px of an edge auto-scrolls the timeline */
@@ -41,9 +38,13 @@ interface TimelineProps {
   onAddSection: (startTime: number, endTime: number) => void
   onSeek: (time: number) => void
   onZoom: (zoom: number) => void
-  onRetime: (id: string, options: RetimeOptions) => void
   onUndoRetime: () => void
   canUndoRetime: boolean
+  /** Auto-time panel is open. On desktop `retimePanel` renders under the toolbar; on mobile
+   * the parent shows it in the docked sheet instead and leaves `retimePanel` undefined. */
+  retimeOpen: boolean
+  onRetimeToggle: () => void
+  retimePanel?: ReactNode
   /** Mobile: the stage has its own icon row, shown in the toolbar until the timeline is touched */
   hasMobileMenu?: boolean
   /** Mobile: extra buttons shown after the stage's icons in the menu row */
@@ -54,7 +55,7 @@ interface TimelineProps {
   /** Mobile preview sizing, cycled by a button next to the zoom buttons */
   stageSize?: StageSize
   onStageSizeChange?: (size: StageSize) => void
-  /** Part of the media that gets exported; shown as draggable handles on the ruler */
+  /** Part of the media that gets exported; set from the playhead with the trim buttons */
   trim?: TrimRange
   onTrimChange?: (range: TrimRange) => void
   /** Receives the toolbar element the stage's icon row is rendered into */
@@ -79,9 +80,11 @@ export function Timeline({
   onAddSection,
   onSeek,
   onZoom,
-  onRetime,
   onUndoRetime,
   canUndoRetime,
+  retimeOpen,
+  onRetimeToggle,
+  retimePanel,
   hasMobileMenu = false,
   mobileMenuExtra,
   toolsOpen = false,
@@ -97,29 +100,6 @@ export function Timeline({
 
   // Mobile toolbar: stage menu by default, timeline tools once the timeline is touched
   const showMenu = hasMobileMenu && !toolsOpen
-
-  // Retime settings live here so they survive closing the panel
-  const [retimeOpen, setRetimeOpen] = useState(false)
-  const [cadence, setCadence] = useState(0)
-  const [bpm, setBpm] = useState('')
-
-  const retimeOptions = useMemo<RetimeOptions>(() => ({
-    cadence: cadence / 100,
-    bpm: parseFloat(bpm) > 0 ? parseFloat(bpm) : null,
-    mediaDuration: duration,
-  }), [cadence, bpm, duration])
-
-  const retimePreview = useMemo(() => (
-    selectedSegmentId
-      ? retimeFollowingSegments(segments, lyricSections, selectedSegmentId, retimeOptions)
-      : null
-  ), [segments, lyricSections, selectedSegmentId, retimeOptions])
-
-  const handleApplyRetime = useCallback(() => {
-    if (selectedSegmentId) {
-      onRetime(selectedSegmentId, retimeOptions)
-    }
-  }, [selectedSegmentId, retimeOptions, onRetime])
 
   const pixelsPerSecond = timelineState.pixelsPerSecond * timelineState.zoom
   
@@ -302,8 +282,20 @@ export function Timeline({
     }
   }, [createsSection, targetSection, currentTime, duration, onAddSection, onUpdateSection])
 
-  // Trim handles only make sense once the media is loaded
+  // Trim buttons only make sense once the media is loaded. The playhead picks the point.
   const showTrim = !!trim && !!onTrimChange && duration > 0
+  const isTrimmed = showTrim && (trim.start > 0 || trim.end < duration)
+  const canSetTrimStart = showTrim && currentTime <= trim.end - MIN_TRIM_LENGTH
+  const canSetTrimEnd = showTrim && currentTime >= trim.start + MIN_TRIM_LENGTH
+  const handleSetTrimStart = () => {
+    if (showTrim) onTrimChange({ ...trim, start: Math.max(0, currentTime) })
+  }
+  const handleSetTrimEnd = () => {
+    if (showTrim) onTrimChange({ ...trim, end: Math.min(duration, currentTime) })
+  }
+  const handleResetTrim = () => {
+    if (showTrim) onTrimChange({ start: 0, end: duration })
+  }
 
   // if (duration === 0) {
   //   return (
@@ -336,7 +328,7 @@ export function Timeline({
           showMenu && 'max-lg:hidden'
         )}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {hasMobileMenu && (
             <Button
               variant="ghost"
@@ -355,7 +347,7 @@ export function Timeline({
             size="sm"
             onClick={handleSetStart}
             disabled={!canSetStart}
-            aria-label="Set start"
+            aria-label="Set lyric start"
             title={
               createsSection
                 ? `Start the lyrics at ${formatTime(currentTime)}`
@@ -367,24 +359,59 @@ export function Timeline({
             }
           >
             <ArrowRightFromLine className="w-4 h-4 sm:mr-1" />
-            <span className="hidden sm:inline">Set start</span>
+            <span className="hidden sm:inline">Lyric start</span>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSetTrimStart}
+            disabled={!canSetTrimStart}
+            aria-label="Set export start"
+            title={`Export from ${formatTime(currentTime)} (the playhead)`}
+          >
+            <ArrowLeftToLine className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Trim start</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSetTrimEnd}
+            disabled={!canSetTrimEnd}
+            aria-label="Set export end"
+            title={`Export up to ${formatTime(currentTime)} (the playhead)`}
+          >
+            <ArrowRightToLine className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Trim end</span>
+          </Button>
+          {isTrimmed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetTrim}
+              aria-label="Reset trim"
+              title="Export the whole media again"
+            >
+              <RotateCcw className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Reset trim</span>
+            </Button>
+          )}
           <Button
             variant="outline" 
             size="sm" 
             onClick={() => onInsertSpacer(currentTime)}
             disabled={segments.length === 0}
-            aria-label="Insert space"
-            title="Insert space at playhead"
+            aria-label="Insert gap"
+            title="Insert a gap in the lyrics at the playhead"
           >
-            <Pause className="w-4 h-4 sm:mr-1" />
-            <span className="hidden sm:inline">Insert Space</span>
+            <Space className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Insert Gap</span>
           </Button>
           <Button
             variant={retimeOpen ? 'secondary' : 'outline'}
             size="sm"
-            onClick={() => setRetimeOpen(open => !open)}
+            onClick={onRetimeToggle}
             disabled={segments.length === 0}
+            data-docked-sheet-toggle
             aria-label="Auto-time"
             title="Time the following lines from the selected line"
           >
@@ -420,17 +447,7 @@ export function Timeline({
         </div>
       </div>
 
-      {retimeOpen && (
-        <RetimePanel
-          preview={retimePreview}
-          cadence={cadence}
-          bpm={bpm}
-          onCadenceChange={setCadence}
-          onBpmChange={setBpm}
-          onApply={handleApplyRetime}
-          onClose={() => setRetimeOpen(false)}
-        />
-      )}
+      {retimeOpen && retimePanel}
 
       {/* Touching the timeline swaps the mobile toolbar to the timeline tools */}
       <ScrollArea className="w-full" ref={scrollAreaRef} onPointerDownCapture={() => onToolsOpenChange?.(true)}>
@@ -460,42 +477,18 @@ export function Timeline({
                 </span>
               </div>
             ))}
-
-            {/* Export range handles */}
-            {showTrim && (
-              <>
-                <TimelineTrimHandle
-                  edge="start"
-                  time={trim.start}
-                  pixelsPerSecond={pixelsPerSecond}
-                  min={0}
-                  max={trim.end - MIN_TRIM_LENGTH}
-                  clientXToTime={clientXToTime}
-                  onChange={start => onTrimChange({ ...trim, start })}
-                />
-                <TimelineTrimHandle
-                  edge="end"
-                  time={trim.end}
-                  pixelsPerSecond={pixelsPerSecond}
-                  min={trim.start + MIN_TRIM_LENGTH}
-                  max={duration}
-                  clientXToTime={clientXToTime}
-                  onChange={end => onTrimChange({ ...trim, end })}
-                />
-              </>
-            )}
           </div>
 
           {/* Parts outside the export range are dimmed (still editable, just not exported) */}
           {showTrim && trim.start > 0 && (
             <div
-              className="absolute top-6 bottom-0 left-0 bg-black/60 border-r-2 border-amber-400 pointer-events-none z-[6]"
+              className="absolute top-6 bottom-0 left-0 bg-black/60 border-r border-foreground/60 pointer-events-none z-[6]"
               style={{ width: timeToPixels(trim.start) }}
             />
           )}
           {showTrim && trim.end < effectiveDuration && (
             <div
-              className="absolute top-6 bottom-0 bg-black/60 border-l-2 border-amber-400 pointer-events-none z-[6]"
+              className="absolute top-6 bottom-0 bg-black/60 border-l border-foreground/60 pointer-events-none z-[6]"
               style={{ left: timeToPixels(trim.end), width: timeToPixels(effectiveDuration - trim.end) }}
             />
           )}

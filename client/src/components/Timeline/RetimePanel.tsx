@@ -15,7 +15,10 @@ interface RetimePanelProps {
   onCadenceChange: (cadence: number) => void
   onBpmChange: (bpm: string) => void
   onApply: () => void
-  onClose: () => void
+  /** Omitted when the panel sits in the docked sheet, which has its own close button */
+  onClose?: () => void
+  /** Inside the mobile sheet: no border/tint of its own */
+  embedded?: boolean
 }
 
 function formatSeconds(seconds: number): string {
@@ -34,6 +37,7 @@ export function RetimePanel({
   onBpmChange,
   onApply,
   onClose,
+  embedded = false,
 }: RetimePanelProps) {
   const bpmValue = parseFloat(bpm)
   const hasBpm = bpmValue > 0
@@ -44,7 +48,7 @@ export function RetimePanel({
   const referenceBars = preview && hasBpm ? referenceLength / barLength(bpmValue) : null
 
   return (
-    <div className="px-4 py-3 border-b border-border bg-black/20 space-y-3">
+    <div className={embedded ? 'space-y-3 p-4' : 'px-4 py-3 border-b border-border bg-black/20 space-y-3'}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium flex items-center gap-2">
@@ -64,14 +68,16 @@ export function RetimePanel({
             </p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} title="Close">
-          <X className="w-4 h-4" />
-        </Button>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} title="Close">
+            <X className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         {/* Cadence */}
-        <div className="flex items-center gap-3 flex-1 min-w-[260px]">
+        <div className="flex items-center gap-3 flex-1 min-w-0 sm:min-w-[260px]">
           <span className="text-xs text-muted-foreground shrink-0">Cadence</span>
           <span className="text-xs text-muted-foreground shrink-0">Locked</span>
           <Slider
@@ -80,9 +86,9 @@ export function RetimePanel({
             max={100}
             step={5}
             onValueChange={([value]) => onCadenceChange(value)}
-            className="flex-1"
+            className="flex-1 min-w-12"
           />
-          <span className="text-xs text-muted-foreground shrink-0">Follows words</span>
+          <span className="text-xs text-muted-foreground shrink-0">Follows<span className="hidden sm:inline"> words</span></span>
           <span className="text-xs font-mono w-10 text-right shrink-0">{cadence}%</span>
         </div>
 

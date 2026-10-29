@@ -50,7 +50,7 @@ function ColorField({ label, value, onChange, disabled, className }: ColorFieldP
           onChange={e => setDraft(e.target.value)}
           onBlur={commitDraft}
           onKeyDown={e => e.key === 'Enter' && commitDraft()}
-          className="h-8 w-24 rounded-md border border-input bg-transparent px-2 font-mono text-xs uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          className="h-8 w-24 rounded-md border border-input bg-transparent px-2 font-mono text-base md:text-xs uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         />
       </div>
     </div>

@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Settings, FileText, Palette } from 'lucide-react'
 
-import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform, useMediaQuery, DESKTOP_QUERY } from '@/hooks'
+import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform, useMediaQuery, useViewportInsets, DESKTOP_QUERY } from '@/hooks'
 import type { ExportSource } from '@/hooks/useCanvasExport'
 import { SettingsProvider, OverlayProvider, useOverlay, useSettings } from '@/contexts'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { ImageStage } from '@/components/ImageStage'
-import { Timeline } from '@/components/Timeline'
+import { Timeline, RetimePanel } from '@/components/Timeline'
 import { LyricEditor, LyricStrip } from '@/components/LyricEditor'
 import { StylePanel } from '@/components/StylePanel'
 import { ExportButton, ExportProgress } from '@/components/ExportButton'
@@ -18,7 +18,8 @@ import { NewTabLink } from '@/components/ui/new-tab-link'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SourceMode, OutputFormat, ImageFit, ExportStatus, StageSize } from '@/types'
 import type { TrimRange } from '@/types'
-import { isImageFile, validateImageFile, validateVideoFile } from '@/utils'
+import { isImageFile, validateImageFile, validateVideoFile, retimeFollowingSegments } from '@/utils'
+import type { RetimeOptions } from '@/utils'
 import './index.css'
 
 /** Shown in the paused preview when no lyric is selected or on screen */
@@ -33,7 +34,9 @@ function AppContent() {
   const [timelineToolsOpen, setTimelineToolsOpen] = useState(false)
   // Mobile: Lyrics / Style live in a docked panel (desktop keeps the sidebar tabs)
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
-  const [mobileSheet, setMobileSheet] = useState<'lyrics' | 'style' | null>(null)
+  // Keeps the mobile shell and docked panel sized to what's visible when the keyboard is up
+  useViewportInsets()
+  const [mobileSheet, setMobileSheet] = useState<'lyrics' | 'style' | 'retime' | null>(null)
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('half')
   const [currentView, setCurrentView] = useState<AppView>('editor')
   const [sourceMode, setSourceMode] = useState<SourceMode>(SourceMode.VIDEO)
@@ -48,7 +51,8 @@ function AppContent() {
     mediaState,
     loadVideo,
     loadAudio,
-    togglePlayPause,
+    play,
+    pause,
     seek,
     reset: resetMedia,
   } = useMediaPlayer()
@@ -127,6 +131,25 @@ function AppContent() {
 
   const sampleText = segments.find(seg => seg.id === selectedSegmentId)?.text || SAMPLE_LYRIC
 
+  // Auto-time (retime) settings live here so they survive closing the panel. The panel shows
+  // under the timeline toolbar on desktop and in the docked sheet on mobile.
+  const [desktopRetimeOpen, setDesktopRetimeOpen] = useState(false)
+  const [cadence, setCadence] = useState(0)
+  const [bpm, setBpm] = useState('')
+  const retimeOptions = useMemo<RetimeOptions>(() => ({
+    cadence: cadence / 100,
+    bpm: parseFloat(bpm) > 0 ? parseFloat(bpm) : null,
+    mediaDuration: mediaState.duration,
+  }), [cadence, bpm, mediaState.duration])
+  const retimePreview = useMemo(() => (
+    selectedSegmentId
+      ? retimeFollowingSegments(segments, lyricSections, selectedSegmentId, retimeOptions)
+      : null
+  ), [segments, lyricSections, selectedSegmentId, retimeOptions])
+  const applyRetime = () => {
+    if (selectedSegmentId) retimeFromSegment(selectedSegmentId, retimeOptions)
+  }
+
   // Export lives here so the header can show its progress next to the button
   const { exportVideo, cancelExport, progress: exportProgress } = useCanvasExport({
     mediaRef,
@@ -140,6 +163,35 @@ function AppContent() {
   const isExporting = exportProgress.status === ExportStatus.PREPARING ||
     exportProgress.status === ExportStatus.PROCESSING
 
+  // Playback follows the export range: play starts at the trim start (when the playhead is
+  // outside the range or the end was reached) and stops at the trim end.
+  const togglePlayback = useCallback(() => {
+    if (mediaState.isPlaying) {
+      pause()
+      return
+    }
+    const atEnd = trim.end > 0 && mediaState.currentTime >= trim.end - 0.05
+    if (mediaState.currentTime < trim.start || atEnd) seek(trim.start)
+    play()
+  }, [mediaState.isPlaying, mediaState.currentTime, trim, play, pause, seek])
+
+  const isTrimActive = trim.end > 0 && trim.end < mediaState.duration - 0.05
+  useEffect(() => {
+    if (!mediaState.isPlaying || isExporting || !isTrimActive) return
+    let frame = 0
+    const check = () => {
+      const media = mediaRef.current
+      if (media && media.currentTime >= trim.end) {
+        media.pause()
+        seek(trim.end)
+        return
+      }
+      frame = requestAnimationFrame(check)
+    }
+    frame = requestAnimationFrame(check)
+    return () => cancelAnimationFrame(frame)
+  }, [mediaState.isPlaying, isExporting, isTrimActive, trim.end, mediaRef, seek])
+
   // Spacebar plays/pauses - except while typing or on a focused control (space
   // already activates those), and never mid-export since export drives playback
   useEffect(() => {
@@ -150,19 +202,20 @@ function AppContent() {
       const target = e.target as HTMLElement | null
       if (target?.closest('input, textarea, select, button, a, [contenteditable="true"], [role="slider"], [role="tab"], [role="menuitem"]')) return
       e.preventDefault()
-      togglePlayPause()
+      togglePlayback()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentView, isExporting, togglePlayPause])
+  }, [currentView, isExporting, togglePlayback])
 
   // Mobile: a tap on the stage that only dismisses the docked panel or swaps the toolbar
   // back to the stage icons must not also play/pause. Whether the tap does that is decided
   // on pointer down, before those states reset.
   const stageTapIsDismissRef = useRef(false)
   const handleStagePointerDown = () => {
-    stageTapIsDismissRef.current = !isDesktop && (timelineToolsOpen || mobileSheet !== null)
+    stageTapIsDismissRef.current = !isDesktop &&
+      (timelineToolsOpen || (mobileSheet !== null && mobileSheet !== 'retime'))
     setTimelineToolsOpen(false)
   }
   const handleStageTap = () => {
@@ -170,11 +223,11 @@ function AppContent() {
       stageTapIsDismissRef.current = false
       return
     }
-    togglePlayPause()
+    togglePlayback()
   }
 
   // Lyrics opens tall (room to write), Style opens half so the preview stays visible
-  const toggleMobileSheet = (kind: 'lyrics' | 'style') => {
+  const toggleMobileSheet = (kind: 'lyrics' | 'style' | 'retime') => {
     if (mobileSheet === kind) {
       setMobileSheet(null)
       return
@@ -183,8 +236,22 @@ function AppContent() {
     setMobileSheet(kind)
   }
 
+  const retimePanel = (embedded: boolean) => (
+    <RetimePanel
+      embedded={embedded}
+      preview={retimePreview}
+      cadence={cadence}
+      bpm={bpm}
+      onCadenceChange={setCadence}
+      onBpmChange={setBpm}
+      onApply={applyRetime}
+      onClose={embedded ? undefined : () => setDesktopRetimeOpen(false)}
+    />
+  )
+
   const lyricEditor = (
     <LyricEditor
+      embedded={!isDesktop}
       segments={segments}
       lyricSections={lyricSections}
       selectedSegmentId={selectedSegmentId}
@@ -202,12 +269,14 @@ function AppContent() {
       onSelectSection={selectLyricSection}
     />
   )
-  const stylePanel = <StylePanel isImageMode={sourceMode === SourceMode.IMAGE} />
+  const stylePanel = <StylePanel isImageMode={sourceMode === SourceMode.IMAGE} embedded={!isDesktop} />
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    // Mobile: exactly the visible height, header fixed on top, the rest scrolls inside.
+    // Desktop: normal page flow (the scroll wrapper below is `contents`).
+    <div className="flex h-[var(--app-height,100dvh)] flex-col bg-background lg:h-auto lg:min-h-screen">
       {/* Header */}
-      <header className="border-b border-border px-3 lg:px-4 py-3 bg-[rgba(0,0,0,0.8)]">
+      <header className="border-b border-border px-3 lg:px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:pt-3 bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
             type="button"
@@ -274,7 +343,8 @@ function AppContent() {
       </header>
       
       {/* Main Content */}
-      <main className="flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden lg:contents">
+      <main className="flex-1 min-w-0">
         {currentView === 'editor' ? (
           <div className="max-w-7xl mx-auto px-2 py-2 lg:p-4">
             {/* Mobile order: video -> timeline -> lyrics/style.
@@ -381,9 +451,11 @@ function AppContent() {
                   onAddSection={addLyricSection}
                   onSeek={seek}
                   onZoom={setZoom}
-                  onRetime={retimeFromSegment}
                   onUndoRetime={undoRetime}
                   canUndoRetime={canUndoRetime}
+                  retimeOpen={isDesktop ? desktopRetimeOpen : mobileSheet === 'retime'}
+                  onRetimeToggle={() => (isDesktop ? setDesktopRetimeOpen(open => !open) : toggleMobileSheet('retime'))}
+                  retimePanel={isDesktop ? retimePanel(false) : undefined}
                   hasMobileMenu
                   mobileMenuExtra={
                     <>
@@ -436,7 +508,7 @@ function AppContent() {
                   onAddLyricSection={addLyricSection}
                   onSeek={seek}
                   onOpenFull={() => {
-                    if (!mobileSheet) setSheetSnap('tall')
+                    setSheetSnap('tall')
                     setMobileSheet('lyrics')
                   }}
                 />
@@ -447,12 +519,17 @@ function AppContent() {
               <DockedSheet
                 open={mobileSheet !== null}
                 onClose={() => setMobileSheet(null)}
-                title={mobileSheet === 'style' ? 'Style' : 'Lyrics'}
+                title={mobileSheet === 'style' ? 'Style' : mobileSheet === 'retime' ? 'Auto-time' : 'Lyrics'}
+                // Auto-time needs the timeline to pick its reference line, so taps there keep it open
+                dismissOnOutsideTap={mobileSheet !== 'retime'}
                 snap={sheetSnap}
                 onSnapChange={setSheetSnap}
               >
                 {mobileSheet === 'lyrics' && lyricEditor}
                 {mobileSheet === 'style' && stylePanel}
+                {mobileSheet === 'retime' && (
+                  <div className="min-h-0 flex-1 overflow-y-auto">{retimePanel(true)}</div>
+                )}
               </DockedSheet>
             )}
           </div>
@@ -461,16 +538,8 @@ function AppContent() {
         )}
       </main>
       
-      {/* Sidebar */}
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-      />
-      
       {/* Footer */}
-      <footer className="border-t border-border px-4 py-3 mt-auto bg-[rgba(0,0,0,0.8)]">
+      <footer className="border-t border-border px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] mt-auto bg-[rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
           <span className="text-primary font-semibold">Lyric Drop</span> v0.2.9 • Built by{' '}
           <NewTabLink
@@ -481,6 +550,15 @@ function AppContent() {
           </NewTabLink>
         </div>
       </footer>
+      </div>
+
+      {/* Sidebar */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+      />
     </div>
   )
 }

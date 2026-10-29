@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- resizes-content: the on-screen keyboard shrinks the layout instead of covering it.
+         viewport-fit=cover: lets the standalone (installed) app use the full screen. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     
     <!-- Primary Meta Tags -->
     <title>Lyric Drop - Sync Lyrics to Video | Joe Hunter</title>
@@ -67,7 +69,14 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+
+    <!-- Installable app (PWA): manifest + iOS standalone hints. The service worker is registered in src/main.tsx -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Lyric Drop" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
     <!-- Fonts are self-hosted (@fontsource) and imported in src/main.tsx - no third-party font requests -->
   </head>

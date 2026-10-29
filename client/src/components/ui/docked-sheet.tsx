@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { getViewportHeight } from "@/hooks/useViewportInsets"
 import { cn } from "@/utils/cn"
 
 /** peek = header only, half = list beside the preview, tall = room to write */
@@ -14,7 +15,7 @@ const SNAP_RATIO: Record<SheetSnap, number> = { peek: 0, half: 0.4, tall: 0.75 }
 const TAP_SLOP = 6
 
 const snapHeight = (snap: SheetSnap) =>
-  snap === "peek" ? PEEK_PX : Math.round(window.innerHeight * SNAP_RATIO[snap])
+  snap === "peek" ? PEEK_PX : Math.round(getViewportHeight() * SNAP_RATIO[snap])
 
 const nearestSnap = (height: number): SheetSnap => {
   const snaps = Object.keys(SNAP_RATIO) as SheetSnap[]
@@ -34,6 +35,8 @@ interface DockedSheetProps {
   title: string
   snap: SheetSnap
   onSnapChange: (snap: SheetSnap) => void
+  /** Close when tapping outside the panel (default). Turn off when the page behind is needed. */
+  dismissOnOutsideTap?: boolean
   children: ReactNode
 }
 
@@ -43,7 +46,7 @@ interface DockedSheetProps {
  * it) to switch between peek / half / tall. While open it adds matching space at the
  * end of the page so everything can still be scrolled clear of the panel.
  */
-function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: DockedSheetProps) {
+function DockedSheet({ open, onClose, title, snap, onSnapChange, dismissOnOutsideTap = true, children }: DockedSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const [dragHeight, setDragHeight] = useState<number | null>(null)
@@ -51,7 +54,7 @@ function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: Doc
   // A tap anywhere outside the panel closes it. Uses click (not pointerdown) so
   // scrolling the page underneath doesn't dismiss it.
   useEffect(() => {
-    if (!open) return
+    if (!open || !dismissOnOutsideTap) return
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
       if (!target || !target.isConnected) return
@@ -60,9 +63,11 @@ function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: Doc
     }
     document.addEventListener("click", handleClick)
     return () => document.removeEventListener("click", handleClick)
-  }, [open, onClose])
+  }, [open, dismissOnOutsideTap, onClose])
 
-  const cssHeight = snap === "peek" ? `${PEEK_PX}px` : `${SNAP_RATIO[snap] * 100}dvh`
+  // Relative to the visible area (shrinks with the keyboard), set by useViewportInsets
+  const cssHeight =
+    snap === "peek" ? `${PEEK_PX}px` : `calc(var(--app-height, 100dvh) * ${SNAP_RATIO[snap]})`
   const height = dragHeight !== null ? `${dragHeight}px` : cssHeight
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -76,7 +81,7 @@ function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: Doc
     if (!drag) return
     const dy = drag.startY - e.clientY
     if (dragHeight === null && Math.abs(dy) < TAP_SLOP) return
-    const max = window.innerHeight * 0.9
+    const max = getViewportHeight() * 0.9
     setDragHeight(Math.max(PEEK_PX, Math.min(max, drag.startHeight + dy)))
   }
 
@@ -107,9 +112,9 @@ function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: Doc
         aria-label={title}
         aria-hidden={!open}
         inert={!open}
-        style={{ height }}
+        style={{ height, bottom: "var(--keyboard-inset, 0px)" }}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden rounded-t-xl border-t border-border bg-card shadow-[0_-4px_16px_rgba(0,0,0,0.4)]",
+          "fixed inset-x-0 z-40 flex flex-col overflow-hidden rounded-t-xl border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(0,0,0,0.4)]",
           "transform transition-transform duration-300 ease-in-out",
           dragHeight === null && "transition-[transform,height]",
           open ? "translate-y-0" : "translate-y-full"
@@ -117,14 +122,14 @@ function DockedSheet({ open, onClose, title, snap, onSnapChange, children }: Doc
       >
         {/* Header doubles as the drag handle */}
         <div
-          className="relative flex h-14 shrink-0 cursor-grab touch-none select-none flex-col items-center justify-center border-b border-border"
+          className="relative flex h-12 shrink-0 cursor-grab touch-none select-none flex-col items-center justify-center border-b border-border"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
           <div className="h-1 w-10 rounded-full bg-muted-foreground/40" />
-          <h2 className="mt-1 text-sm font-semibold">{title}</h2>
+          <h2 className="mt-0.5 text-sm font-semibold">{title}</h2>
           <Button
             variant="ghost"
             size="icon"

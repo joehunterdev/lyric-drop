@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react'
 import { Upload, FileVideo } from 'lucide-react'
 
 import { PlaybackControls } from './PlaybackControls'
+import { StagePlayButton } from './StagePlayButton'
 import { cn } from '@/utils/cn'
 import { StageSize } from '@/types'
 import {
@@ -60,7 +61,9 @@ export function VideoPlayer({
       {/* Video Container - tap/click to play or pause once loaded */}
       <div
         className={cn(
-          'relative aspect-[9/16] lg:max-h-[60vh] bg-black rounded-lg overflow-hidden',
+          'relative aspect-[9/16] lg:max-h-[60vh] rounded-lg overflow-hidden',
+          // Empty on mobile: no black box, just an outlined drop area
+          mediaState.url ? 'bg-black' : 'max-lg:border max-lg:border-dashed max-lg:border-border lg:bg-black',
           stageSize === StageSize.COMPACT && 'max-h-[45vh]',
           stageSize === StageSize.COVER && 'max-lg:aspect-auto max-lg:h-[45vh]',
           mediaState.isLoaded && 'cursor-pointer'
@@ -87,14 +90,20 @@ export function VideoPlayer({
                 </div>
               </div>
             )}
+
+            {mediaState.isLoaded && (
+              <StagePlayButton isPlaying={mediaState.isPlaying} onToggle={onTogglePlayPause} />
+            )}
           </>
         ) : (
           <div 
-            className="w-full h-full flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-card/50 transition-colors"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-muted-foreground cursor-pointer hover:bg-card/50 transition-colors"
             onClick={handleUploadClick}
           >
             <Upload className="w-12 h-12 mb-4" />
-            <p className="text-lg font-medium">Click to upload video or image</p>
+            <p className="text-lg font-medium">
+              <span className="lg:hidden">Tap</span><span className="hidden lg:inline">Click</span> to upload video or image
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
               <FileVideo className="w-3 h-3 inline mr-1" />
               {[...ALLOWED_VIDEO_EXTENSIONS, ...ALLOWED_IMAGE_EXTENSIONS].join(', ')} (max {formatMaxFileSize()})
