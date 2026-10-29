@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Settings, FileText, Palette } from 'lucide-react'
 
 import { useMediaPlayer, useImageBackground, useTimeline, useCanvasExport, useWaveform, useMediaQuery, DESKTOP_QUERY } from '@/hooks'
@@ -7,7 +7,7 @@ import { SettingsProvider, OverlayProvider, useOverlay, useSettings } from '@/co
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { ImageStage } from '@/components/ImageStage'
 import { Timeline } from '@/components/Timeline'
-import { LyricEditor } from '@/components/LyricEditor'
+import { LyricEditor, LyricStrip } from '@/components/LyricEditor'
 import { StylePanel } from '@/components/StylePanel'
 import { ExportButton, ExportProgress } from '@/components/ExportButton'
 import { Sidebar, LanguageNav, type AppView } from '@/components/layout'
@@ -138,6 +138,22 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentView, isExporting, togglePlayPause])
 
+  // Mobile: a tap on the stage that only dismisses the docked panel or swaps the toolbar
+  // back to the stage icons must not also play/pause. Whether the tap does that is decided
+  // on pointer down, before those states reset.
+  const stageTapIsDismissRef = useRef(false)
+  const handleStagePointerDown = () => {
+    stageTapIsDismissRef.current = !isDesktop && (timelineToolsOpen || mobileSheet !== null)
+    setTimelineToolsOpen(false)
+  }
+  const handleStageTap = () => {
+    if (stageTapIsDismissRef.current) {
+      stageTapIsDismissRef.current = false
+      return
+    }
+    togglePlayPause()
+  }
+
   // Lyrics opens tall (room to write), Style opens half so the preview stays visible
   const toggleMobileSheet = (kind: 'lyrics' | 'style') => {
     if (mobileSheet === kind) {
@@ -248,7 +264,7 @@ function AppContent() {
               {/* Video Player - Left/Center */}
               <div
                 className="order-1 lg:col-span-2"
-                onPointerDownCapture={() => setTimelineToolsOpen(false)}
+                onPointerDownCapture={handleStagePointerDown}
               >
                 {/* Source Mode Switcher - disabled for now: the empty stage picks the mode from the file type
                 <div className="flex gap-1 mb-4">
@@ -285,7 +301,7 @@ function AppContent() {
                     onLoadImage={loadImage}
                     onLoadStageFile={loadStageFile}
                     onLoadAudio={loadAudio}
-                    onTogglePlayPause={togglePlayPause}
+                    onTogglePlayPause={handleStageTap}
                     onSeek={seek}
                     stageSize={stageSize}
                     menuSlot={menuSlot}
@@ -296,7 +312,7 @@ function AppContent() {
                     mediaState={mediaState}
                     activeSegment={activeSegment}
                     onLoadFile={loadStageFile}
-                    onTogglePlayPause={togglePlayPause}
+                    onTogglePlayPause={handleStageTap}
                     onSeek={seek}
                     stageSize={stageSize}
                   />
@@ -381,6 +397,29 @@ function AppContent() {
                   onMenuSlotChange={setMenuSlot}
                 />
               </div>
+
+              {/* Mobile: quick inline lyric editing under the timeline (full editor via the panel) */}
+              {!isDesktop && (
+                <LyricStrip
+                  className="order-3"
+                  segments={segments}
+                  lyricSections={lyricSections}
+                  selectedSegmentId={selectedSegmentId}
+                  selectedSectionId={selectedSectionId}
+                  videoDuration={mediaState.duration}
+                  onSelectSegment={selectSegment}
+                  onUpdateSegment={updateSegment}
+                  onRemoveSegment={removeSegment}
+                  onImportLyrics={importLyrics}
+                  onAppendLyrics={appendLyrics}
+                  onAddLyricSection={addLyricSection}
+                  onSeek={seek}
+                  onOpenFull={() => {
+                    if (!mobileSheet) setSheetSnap('tall')
+                    setMobileSheet('lyrics')
+                  }}
+                />
+              )}
             </div>
 
             {!isDesktop && (
