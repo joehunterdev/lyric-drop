@@ -311,6 +311,32 @@ export function useCanvasExport({
         })
       }
 
+      // Jump to the start of the trimmed range before recording starts, so nothing from
+      // before it (or the paused playhead position) ends up in the file. Mobile seeks can be slow.
+      media.pause()
+      if (Math.abs(media.currentTime - rangeStart) > 0.01) {
+        await new Promise<void>(resolve => {
+          const done = () => {
+            media.removeEventListener('seeked', done)
+            clearTimeout(timer)
+            resolve()
+          }
+          const timer = setTimeout(done, 5000)
+          media.addEventListener('seeked', done)
+          media.currentTime = rangeStart
+        })
+      }
+      if (!isExportingRef.current) return
+
+      const overlay = source.kind === 'image' ? source.overlay : undefined
+
+      // Paint the first frame so the recording doesn't open on a blank canvas
+      renderFrame(ctx, width, height, {
+        background,
+        text: findActiveSegment(segments, media.currentTime)?.text ?? null,
+        overlay,
+      })
+
       // Start recording
       mediaRecorder.start(100) // Collect data every 100ms
 
@@ -320,21 +346,7 @@ export function useCanvasExport({
         message: 'Recording... 0%',
       })
 
-      // Jump to the start of the trimmed range (wait for the seek so no stale frame is recorded)
-      if (Math.abs(media.currentTime - rangeStart) > 0.01) {
-        await new Promise<void>(resolve => {
-          const done = () => {
-            media.removeEventListener('seeked', done)
-            clearTimeout(timer)
-            resolve()
-          }
-          const timer = setTimeout(done, 1000)
-          media.addEventListener('seeked', done)
-          media.currentTime = rangeStart
-        })
-      }
-
-      console.log('[Export] Starting playback...')
+      console.log('[Export] Starting playback...', { rangeStart, rangeEnd })
 
       try {
         await media.play()
@@ -343,8 +355,6 @@ export function useCanvasExport({
         console.error('[Export] Media play failed:', playError)
         throw new Error('Could not play media - check browser autoplay settings')
       }
-
-      const overlay = source.kind === 'image' ? source.overlay : undefined
 
       // Animation loop - draw frames to canvas. Redraw every frame even for a
       // still image: captureStream only emits frames when the canvas is painted.

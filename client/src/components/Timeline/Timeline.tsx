@@ -18,7 +18,22 @@ const SCRUB_EDGE_ZONE = 40
 const SCRUB_MAX_SPEED = 30
 /** Shortest export range, in seconds */
 const MIN_TRIM_LENGTH = 1
+/** Holding the track still this long turns the drag into a playhead scrub */
+const LONG_PRESS_MS = 400
+/** Movement (px) that counts as a drag rather than a press */
+const DRAG_THRESHOLD = 8
 import type { LyricSegment, LyricSection, TimelineState, StageSize, TrimRange } from '@/types'
+
+/** A press on the track: undecided until it moves (pan) or is held (scrub) */
+interface TrackGesture {
+  pointerId: number
+  pointerType: string
+  startX: number
+  startY: number
+  startScroll: number
+  mode: 'pending' | 'pan' | 'scrub' | 'native'
+  timer: number
+}
 
 interface TimelineProps {
   segments: LyricSegment[]
@@ -37,6 +52,8 @@ interface TimelineProps {
   onUpdateSection: (id: string, updates: Partial<LyricSection>) => void
   onAddSection: (startTime: number, endTime: number) => void
   onSeek: (time: number) => void
+  /** Pressing the timeline stops playback */
+  onPause?: () => void
   onZoom: (zoom: number) => void
   onUndoRetime: () => void
   canUndoRetime: boolean
@@ -55,7 +72,8 @@ interface TimelineProps {
   /** Mobile preview sizing, cycled by a button next to the zoom buttons */
   stageSize?: StageSize
   onStageSizeChange?: (size: StageSize) => void
-  /** Part of the media that gets exported; set from the playhead with the trim buttons */
+  /** Part of the media that gets exported; set from the playhead with the trim buttons.
+   * The timeline only shows this range - "Reset trim" brings the rest back. */
   trim?: TrimRange
   onTrimChange?: (range: TrimRange) => void
   /** Receives the toolbar element the stage's icon row is rendered into */
@@ -79,6 +97,7 @@ export function Timeline({
   onUpdateSection,
   onAddSection,
   onSeek,
+  onPause,
   onZoom,
   onUndoRetime,
   canUndoRetime,
@@ -111,9 +130,20 @@ export function Timeline({
     ? Math.min(...segments.map(s => s.startTime))
     : 0
   const effectiveDuration = Math.max(duration, lastSegmentEnd)
-  
+
   const totalWidth = effectiveDuration * pixelsPerSecond
-  
+
+  // Trim buttons only make sense once the media is loaded. The playhead picks the point.
+  const showTrim = !!trim && !!onTrimChange && duration > 0
+  const isTrimmed = showTrim && (trim.start > 0 || trim.end < duration)
+
+  // Visible range: the trimmed-off parts are cut out of the timeline. Everything is still
+  // laid out in media time; the track is shifted left by `viewOffset` and clipped to `viewWidth`.
+  const viewStart = isTrimmed ? trim.start : 0
+  const viewEnd = isTrimmed ? trim.end : effectiveDuration
+  const viewOffset = viewStart * pixelsPerSecond
+  const viewWidth = (viewEnd - viewStart) * pixelsPerSecond
+
   // Convert time to pixels
   const timeToPixels = useCallback((time: number) => {
     return time * pixelsPerSecond
@@ -135,16 +165,23 @@ export function Timeline({
 
   // Seek to the time under a pointer position
   const seekToClientX = useCallback((clientX: number) => {
-    // Allow seeking up to the effective duration (including segments past video end)
-    onSeek(Math.max(0, Math.min(clientXToTime(clientX), effectiveDuration)))
-  }, [clientXToTime, effectiveDuration, onSeek])
+    // Allow seeking up to the end of the visible range (including segments past video end)
+    onSeek(Math.max(viewStart, Math.min(clientXToTime(clientX), viewEnd)))
+  }, [clientXToTime, viewStart, viewEnd, onSeek])
+
+  const getViewport = useCallback(() => (
+    scrollAreaRef.current?.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]') ?? null
+  ), [])
+
+  // A pan or scrub ends with a click on whatever is under the pointer - swallow it
+  const suppressClickRef = useRef(false)
 
   // Handle click on timeline track to seek
   const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     seekToClientX(e.clientX)
   }, [seekToClientX])
 
-  // Ruler scrubbing - capture the pointer so the drag keeps tracking outside the ruler
+  // Scrubbing (ruler drag or long-press on the track) - the playhead follows the pointer
   const scrubXRef = useRef<number | null>(null)
   const scrubFrameRef = useRef(0)
 
@@ -155,14 +192,12 @@ export function Timeline({
 
   useEffect(() => stopScrub, [stopScrub])
 
-  const handleRulerPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    scrubXRef.current = e.clientX
-    seekToClientX(e.clientX)
+  const startScrub = useCallback((clientX: number) => {
+    scrubXRef.current = clientX
+    seekToClientX(clientX)
 
     // Holding near (or past) either edge scrolls the timeline, faster the further out
-    const viewport = scrollAreaRef.current?.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
+    const viewport = getViewport()
     const tick = () => {
       const x = scrubXRef.current
       if (x === null) return
@@ -181,26 +216,127 @@ export function Timeline({
     }
     cancelAnimationFrame(scrubFrameRef.current)
     scrubFrameRef.current = requestAnimationFrame(tick)
+  }, [seekToClientX, getViewport])
+
+  const moveScrub = useCallback((clientX: number) => {
+    scrubXRef.current = clientX
+    seekToClientX(clientX)
   }, [seekToClientX])
 
+  // Ruler: press or drag scrubs straight away. Capture the pointer so the drag keeps
+  // tracking outside the ruler.
+  const handleRulerPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    // Not a track gesture as well
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    startScrub(e.clientX)
+  }, [startScrub])
+
   const handleRulerPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      scrubXRef.current = e.clientX
-      seekToClientX(e.clientX)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) moveScrub(e.clientX)
+  }, [moveScrub])
+
+  // Track: drag pans the timeline (a finger already scrolls it natively, so only the mouse
+  // needs help), press-and-hold then drag scrubs the playhead. Resize handles stop their own
+  // pointer events, so they never get here.
+  const gestureRef = useRef<TrackGesture | null>(null)
+
+  const endTrackGesture = useCallback(() => {
+    const gesture = gestureRef.current
+    if (!gesture) return
+    clearTimeout(gesture.timer)
+    if (gesture.mode === 'pan' || gesture.mode === 'scrub') suppressClickRef.current = true
+    if (gesture.mode === 'scrub') stopScrub()
+    gestureRef.current = null
+  }, [stopScrub])
+
+  useEffect(() => () => {
+    if (gestureRef.current) clearTimeout(gestureRef.current.timer)
+  }, [])
+
+  const handleTrackPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !e.isPrimary) return
+    endTrackGesture()
+    suppressClickRef.current = false
+    const target = e.currentTarget
+    const pointerId = e.pointerId
+    const gesture: TrackGesture = {
+      pointerId,
+      pointerType: e.pointerType,
+      startX: e.clientX,
+      startY: e.clientY,
+      startScroll: getViewport()?.scrollLeft ?? 0,
+      mode: 'pending',
+      timer: window.setTimeout(() => {
+        if (gestureRef.current !== gesture || gesture.mode !== 'pending') return
+        gesture.mode = 'scrub'
+        try {
+          target.setPointerCapture(pointerId)
+        } catch {
+          // Pointer already gone - the scrub ends on the next up/cancel
+        }
+        navigator.vibrate?.(10)
+        startScrub(gesture.startX)
+      }, LONG_PRESS_MS),
     }
-  }, [seekToClientX])
+    gestureRef.current = gesture
+  }, [endTrackGesture, getViewport, startScrub])
+
+  const handleTrackPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = gestureRef.current
+    if (!gesture || gesture.pointerId !== e.pointerId) return
+
+    if (gesture.mode === 'pending') {
+      const moved = Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY)
+      if (moved < DRAG_THRESHOLD) return
+      clearTimeout(gesture.timer)
+      if (gesture.pointerType === 'mouse') {
+        gesture.mode = 'pan'
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } else {
+        // Touch/pen: the browser scrolls the timeline itself
+        gesture.mode = 'native'
+      }
+    }
+
+    if (gesture.mode === 'pan') {
+      const viewport = getViewport()
+      if (viewport) viewport.scrollLeft = gesture.startScroll - (e.clientX - gesture.startX)
+    } else if (gesture.mode === 'scrub') {
+      moveScrub(e.clientX)
+    }
+  }, [getViewport, moveScrub])
+
+  const handleTrackClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!suppressClickRef.current) return
+    suppressClickRef.current = false
+    e.stopPropagation()
+  }, [])
+
+  // Once a long-press scrub starts, the finger must move the playhead, not scroll the page.
+  // Needs a non-passive native listener - React's touch listeners are passive.
+  useEffect(() => {
+    const viewport = getViewport()
+    if (!viewport) return
+    const blockScroll = (e: TouchEvent) => {
+      if (gestureRef.current?.mode === 'scrub' && e.cancelable) e.preventDefault()
+    }
+    viewport.addEventListener('touchmove', blockScroll, { passive: false })
+    return () => viewport.removeEventListener('touchmove', blockScroll)
+  }, [getViewport])
   
-  // Generate time markers - extend to cover all segments
+  // Generate time markers across the visible range (media time, so they match the player)
   const timeMarkers = useMemo(() => {
     const markers: number[] = []
     const interval = timelineState.zoom >= 2 ? 1 : timelineState.zoom >= 1 ? 5 : 10
-    
-    for (let t = 0; t <= effectiveDuration; t += interval) {
+
+    for (let t = Math.ceil(viewStart / interval) * interval; t <= viewEnd; t += interval) {
       markers.push(t)
     }
-    
+
     return markers
-  }, [effectiveDuration, timelineState.zoom])
+  }, [viewStart, viewEnd, timelineState.zoom])
   
   const handleZoomIn = useCallback(() => {
     onZoom(timelineState.zoom + 0.5)
@@ -217,7 +353,7 @@ export function Timeline({
     const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
     if (!scrollContainer) return
     
-    const playheadPosition = timeToPixels(currentTime)
+    const playheadPosition = timeToPixels(currentTime) - viewOffset
     const containerWidth = scrollContainer.clientWidth
     const scrollLeft = scrollContainer.scrollLeft
     
@@ -233,7 +369,7 @@ export function Timeline({
         behavior: 'smooth'
       })
     }
-  }, [currentTime, isPlaying, timeToPixels])
+  }, [currentTime, isPlaying, timeToPixels, viewOffset])
   
   // Scroll to selected segment when selection changes (from sidebar)
   useEffect(() => {
@@ -245,7 +381,7 @@ export function Timeline({
     const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
     if (!scrollContainer) return
     
-    const segmentPosition = selectedSegment.startTime * pixelsPerSecond
+    const segmentPosition = selectedSegment.startTime * pixelsPerSecond - viewOffset
     const containerWidth = scrollContainer.clientWidth
     const scrollLeft = scrollContainer.scrollLeft
     
@@ -257,7 +393,7 @@ export function Timeline({
         behavior: 'smooth'
       })
     }
-  }, [selectedSegmentId, segments, pixelsPerSecond])
+  }, [selectedSegmentId, segments, pixelsPerSecond, viewOffset])
   
   // "Set start" acts on the selected section, or the one holding the selected line
   const selectedSegment = segments.find(s => s.id === selectedSegmentId)
@@ -282,9 +418,6 @@ export function Timeline({
     }
   }, [createsSection, targetSection, currentTime, duration, onAddSection, onUpdateSection])
 
-  // Trim buttons only make sense once the media is loaded. The playhead picks the point.
-  const showTrim = !!trim && !!onTrimChange && duration > 0
-  const isTrimmed = showTrim && (trim.start > 0 || trim.end < duration)
   const canSetTrimStart = showTrim && currentTime <= trim.end - MIN_TRIM_LENGTH
   const canSetTrimEnd = showTrim && currentTime >= trim.start + MIN_TRIM_LENGTH
   const handleSetTrimStart = () => {
@@ -449,13 +582,31 @@ export function Timeline({
 
       {retimeOpen && retimePanel}
 
-      {/* Touching the timeline swaps the mobile toolbar to the timeline tools */}
-      <ScrollArea className="w-full" ref={scrollAreaRef} onPointerDownCapture={() => onToolsOpenChange?.(true)}>
-        <div 
+      {/* Touching the timeline swaps the mobile toolbar to the timeline tools and stops playback */}
+      <ScrollArea
+        className="w-full"
+        ref={scrollAreaRef}
+        onPointerDownCapture={() => {
+          onToolsOpenChange?.(true)
+          if (isPlaying) onPause?.()
+        }}
+      >
+        {/* Visible range - clips the track to the trimmed part */}
+        <div
+          className="relative min-h-[160px] min-w-full overflow-hidden"
+          style={{ width: viewWidth }}
+        >
+        <div
           ref={trackRef}
-          className="relative min-h-[160px] min-w-full"
-          style={{ width: totalWidth }}
+          className="absolute inset-y-0 select-none [-webkit-touch-callout:none]"
+          style={{ left: -viewOffset, width: Math.max(totalWidth, viewOffset + viewWidth) }}
           onClick={handleTrackClick}
+          onClickCapture={handleTrackClickCapture}
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={handleTrackPointerMove}
+          onPointerUp={endTrackGesture}
+          onPointerCancel={endTrackGesture}
+          onContextMenu={e => e.preventDefault()}
         >
           {/* Time Markers - press or drag to scrub the playhead */}
           <div
@@ -479,20 +630,6 @@ export function Timeline({
             ))}
           </div>
 
-          {/* Parts outside the export range are dimmed (still editable, just not exported) */}
-          {showTrim && trim.start > 0 && (
-            <div
-              className="absolute top-6 bottom-0 left-0 bg-black/60 border-r border-foreground/60 pointer-events-none z-[6]"
-              style={{ width: timeToPixels(trim.start) }}
-            />
-          )}
-          {showTrim && trim.end < effectiveDuration && (
-            <div
-              className="absolute top-6 bottom-0 bg-black/60 border-l border-foreground/60 pointer-events-none z-[6]"
-              style={{ left: timeToPixels(trim.end), width: timeToPixels(effectiveDuration - trim.end) }}
-            />
-          )}
-          
           {/* Segments Track */}
           <div className="absolute top-8 left-0 h-[56px] bg-timeline-track min-w-full" style={{ width: totalWidth }}>
             {/* Selected section overlay indicator */}
@@ -592,6 +729,7 @@ export function Timeline({
           >
             <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-timeline-playhead rounded-full" />
           </div>
+        </div>
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>

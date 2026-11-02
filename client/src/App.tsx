@@ -450,6 +450,7 @@ function AppContent() {
                   onUpdateSection={updateLyricSection}
                   onAddSection={addLyricSection}
                   onSeek={seek}
+                  onPause={pause}
                   onZoom={setZoom}
                   onUndoRetime={undoRetime}
                   canUndoRetime={canUndoRetime}
