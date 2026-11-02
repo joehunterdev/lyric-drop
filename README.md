@@ -42,6 +42,48 @@ Open [http://localhost:8081](http://localhost:8081) in your browser.
 
 ---
 
+## 🚀 Deployment
+
+The repository includes a scripted deploy flow that publishes only the built client files.
+
+### Deploy Command
+
+```bash
+npm run deploy
+```
+
+### What It Does
+
+1. Verifies your working tree is clean (no uncommitted changes)
+2. Builds the client app (`npm run build` at repo root)
+3. Packages `client/dist` as a fresh single-commit repository
+4. Force-pushes that build artifact to `origin/release/production`
+
+### Dry Run (No Push)
+
+```bash
+npm run deploy -- --dry
+```
+
+This builds and prepares the deploy commit locally, then prints what would be published without pushing.
+
+### Hostinger Git Deploy
+
+In Hostinger's Git deployment settings:
+
+1. Select branch `release/production`
+2. Pull/deploy it into `public_html`
+
+That branch contains only production build output (for example: `index.html`, `assets/`, localized content files, and `.htaccess`).
+
+### Notes
+
+- Deploys the exact current commit so live output matches source control
+- If you deploy from a branch other than `main`, the script prints a warning
+- The `release/production` branch is rewritten on each deploy and should be treated as a build artifact branch
+
+---
+
 ## 📖 How It Works
 
 1. **Upload** your video (MP4, MOV, or other supported formats)
