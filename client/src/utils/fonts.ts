@@ -6,7 +6,50 @@ export interface FontOption {
   /** Weights the font actually ships - others are faked by the browser */
   weights: number[]
   category: 'display' | 'sans' | 'serif' | 'handwriting' | 'mono'
-  source: 'bundled' | 'system'
+  /** bundled: Fontsource package; file: a font file in assets/fonts/display; system: always there */
+  source: 'bundled' | 'file' | 'system'
+  /** Free for personal use only - commercial use needs a license from the designer */
+  personalUse?: boolean
+}
+
+/**
+ * Display fonts shipped as files (licenses in assets/fonts/display/licenses). Most are free
+ * for personal use only, so the picker shows a disclaimer when one is picked.
+ * `new URL(..., import.meta.url)` makes Vite bundle each file without loading it up front.
+ */
+const DISPLAY_FONT_FILES: Record<string, string> = {
+  'Avigea': new URL('../assets/fonts/display/avigea.woff2', import.meta.url).href,
+  'Bad Coma': new URL('../assets/fonts/display/bad-coma.ttf', import.meta.url).href,
+  'Billo': new URL('../assets/fonts/display/billo.ttf', import.meta.url).href,
+  'Bright Sunlist': new URL('../assets/fonts/display/bright-sunlist.otf', import.meta.url).href,
+  'Chinese Dragon': new URL('../assets/fonts/display/chinese-dragon.ttf', import.meta.url).href,
+  'Crowned': new URL('../assets/fonts/display/crowned.otf', import.meta.url).href,
+  'Crows': new URL('../assets/fonts/display/crows.ttf', import.meta.url).href,
+  'Curse of the Zombie': new URL('../assets/fonts/display/curse-of-the-zombie.ttf', import.meta.url).href,
+  'Cute Days': new URL('../assets/fonts/display/cute-days.ttf', import.meta.url).href,
+  'Finger Printed': new URL('../assets/fonts/display/finger-printed.ttf', import.meta.url).href,
+  'Heartless': new URL('../assets/fonts/display/heartless.ttf', import.meta.url).href,
+  'Hoshiko Satsuki': new URL('../assets/fonts/display/hoshiko-satsuki.ttf', import.meta.url).href,
+  'Infected': new URL('../assets/fonts/display/infected.ttf', import.meta.url).href,
+  'Ithornet': new URL('../assets/fonts/display/ithornet.otf', import.meta.url).href,
+  'Jack Input': new URL('../assets/fonts/display/jackinput.ttf', import.meta.url).href,
+  'Milesdane': new URL('../assets/fonts/display/milesdane.otf', import.meta.url).href,
+  'Modern Thrash': new URL('../assets/fonts/display/modern-thrash.otf', import.meta.url).href,
+  'Oriental Chicken': new URL('../assets/fonts/display/oriental-chicken.ttf', import.meta.url).href,
+  'Panic': new URL('../assets/fonts/display/panic.ttf', import.meta.url).href,
+  'Punk Kid': new URL('../assets/fonts/display/punk-kid.ttf', import.meta.url).href,
+  'Retro Blendy': new URL('../assets/fonts/display/retro-blendy.otf', import.meta.url).href,
+  'Sakuna': new URL('../assets/fonts/display/sakuna.ttf', import.meta.url).href,
+  'Scarecrow': new URL('../assets/fonts/display/scarecrow.ttf', import.meta.url).href,
+  'Sectar': new URL('../assets/fonts/display/sectar.otf', import.meta.url).href,
+  'Seven Swordsmen': new URL('../assets/fonts/display/seven-swordsmen.ttf', import.meta.url).href,
+  'Shadowed Serif': new URL('../assets/fonts/display/shadowed-serif.ttf', import.meta.url).href,
+  'Shadows Fright': new URL('../assets/fonts/display/shadows-fright.ttf', import.meta.url).href,
+  'Sketsa Ramadhan': new URL('../assets/fonts/display/sketsa-ramadhan.otf', import.meta.url).href,
+  'Soopafresh': new URL('../assets/fonts/display/soopafresh.ttf', import.meta.url).href,
+  'Space Age': new URL('../assets/fonts/display/space-age.ttf', import.meta.url).href,
+  'Sweety Rasty': new URL('../assets/fonts/display/sweety-rasty.otf', import.meta.url).href,
+  'Syamsiah Arabic': new URL('../assets/fonts/display/syamsiah-arabic.ttf', import.meta.url).href,
 }
 
 /**
@@ -25,6 +68,13 @@ export const FONT_OPTIONS: FontOption[] = [
   { family: 'Playfair Display', weights: [400, 700, 900], category: 'serif', source: 'bundled' },
   { family: 'Permanent Marker', weights: [400], category: 'handwriting', source: 'bundled' },
   { family: 'Space Mono', weights: [400, 700], category: 'mono', source: 'bundled' },
+  ...Object.keys(DISPLAY_FONT_FILES).map((family): FontOption => ({
+    family,
+    weights: [400],
+    category: 'display',
+    source: 'file',
+    personalUse: true,
+  })),
 ]
 
 /** Weights offered in the UI */
@@ -99,10 +149,19 @@ const FONT_LOADERS: Record<string, () => Promise<unknown>> = {
 
 const requestedFonts = new Map<string, Promise<unknown>>()
 
+async function loadDisplayFontFile(family: string): Promise<void> {
+  const face = new FontFace(family, `url("${DISPLAY_FONT_FILES[family]}")`)
+  await face.load()
+  document.fonts.add(face)
+}
+
 function loadBundledFontCss(family: string): Promise<unknown> {
   let request = requestedFonts.get(family)
   if (!request) {
-    request = (FONT_LOADERS[family]?.() ?? Promise.resolve()).catch(error => {
+    const load = family in DISPLAY_FONT_FILES
+      ? () => loadDisplayFontFile(family)
+      : FONT_LOADERS[family]
+    request = (load?.() ?? Promise.resolve()).catch(error => {
       requestedFonts.delete(family)
       throw error
     })
@@ -119,7 +178,7 @@ function loadBundledFontCss(family: string): Promise<unknown> {
 export async function ensureFontLoaded(family: string, weight: number): Promise<boolean> {
   const font = findFontOption(family)
   if (font?.source === 'system') return true
-  if (font?.source === 'bundled') {
+  if (font?.source === 'bundled' || font?.source === 'file') {
     try {
       await loadBundledFontCss(family)
     } catch (error) {

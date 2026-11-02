@@ -60,4 +60,12 @@ Options -Indexes
   ExpiresByType image/svg+xml "access plus 1 month"
   ExpiresByType image/webp "access plus 1 month"
   ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/otf "access plus 1 year"
+</IfModule>
+
+# Display fonts ship as .ttf/.otf - make sure Apache labels them as fonts
+<IfModule mod_mime.c>
+  AddType font/ttf .ttf
+  AddType font/otf .otf
 </IfModule>

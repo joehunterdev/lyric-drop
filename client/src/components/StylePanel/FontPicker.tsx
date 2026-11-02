@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Upload, Trash2, Loader2, AlertTriangle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Upload, Trash2, Loader2, AlertTriangle, Info } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -14,7 +14,33 @@ import {
 } from '@/components/ui/select'
 import { useFontLoader } from '@/hooks'
 import { useOverlay } from '@/contexts'
-import { FONT_OPTIONS, ALLOWED_FONT_EXTENSIONS, ensureFontLoaded } from '@/utils'
+import { FONT_OPTIONS, ALLOWED_FONT_EXTENSIONS, ensureFontLoaded, findFontOption } from '@/utils'
+import type { FontOption } from '@/utils'
+
+const STANDARD_FONTS = FONT_OPTIONS.filter(font => !font.personalUse)
+const PERSONAL_USE_FONTS = FONT_OPTIONS.filter(font => font.personalUse)
+
+/**
+ * Font name in its own typeface. The font is fetched only once the item scrolls into view,
+ * so opening the list doesn't download every font.
+ */
+function FontPreview({ font }: { font: FontOption }) {
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      void ensureFontLoaded(font.family, font.weights[0])
+      observer.disconnect()
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [font])
+
+  return <span ref={ref} style={{ fontFamily: `"${font.family}"` }}>{font.family}</span>
+}
 
 interface FontPickerProps {
   family: string
@@ -32,11 +58,7 @@ export function FontPicker({ family, weight, onChange }: FontPickerProps) {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const customFont = customFonts.find(font => font.family === family)
-
-  // Load every curated font when the list opens so the previews render in their own face
-  const handleOpenChange = (open: boolean) => {
-    if (open) FONT_OPTIONS.forEach(font => void ensureFontLoaded(font.family, font.weights[0]))
-  }
+  const isPersonalUse = !!findFontOption(family)?.personalUse
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -57,7 +79,7 @@ export function FontPicker({ family, weight, onChange }: FontPickerProps) {
       <div className="grid grid-cols-[5rem_1fr] items-center gap-3">
         <span className="text-xs text-muted-foreground">Font</span>
         <div className="flex items-center gap-1.5 min-w-0">
-          <Select value={family} onValueChange={onChange} onOpenChange={handleOpenChange}>
+          <Select value={family} onValueChange={onChange}>
             <SelectTrigger className="h-8 min-w-0" aria-label="Font">
               <SelectValue>
                 <span style={{ fontFamily: `"${family}"` }}>{customFont?.name ?? family}</span>
@@ -66,9 +88,18 @@ export function FontPicker({ family, weight, onChange }: FontPickerProps) {
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>Fonts</SelectLabel>
-                {FONT_OPTIONS.map(font => (
+                {STANDARD_FONTS.map(font => (
                   <SelectItem key={font.family} value={font.family}>
-                    <span style={{ fontFamily: `"${font.family}"` }}>{font.family}</span>
+                    <FontPreview font={font} />
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Display - personal use only</SelectLabel>
+                {PERSONAL_USE_FONTS.map(font => (
+                  <SelectItem key={font.family} value={font.family}>
+                    <FontPreview font={font} />
                   </SelectItem>
                 ))}
               </SelectGroup>
@@ -129,6 +160,15 @@ export function FontPicker({ family, weight, onChange }: FontPickerProps) {
       {status === 'error' && (
         <p className="pl-[5.75rem] text-xs text-orange-400 flex items-center gap-1">
           <AlertTriangle className="w-3 h-3" /> Font couldn't load - check your connection
+        </p>
+      )}
+      {isPersonalUse && (
+        <p className="pl-[5.75rem] text-xs text-muted-foreground flex items-start gap-1">
+          <Info className="w-3 h-3 mt-0.5 shrink-0" />
+          <span>
+            Free for personal use only. Using this font in commercial work (ads, brand or paid
+            content) needs a license from its designer.
+          </span>
         </p>
       )}
       {uploadError && (
