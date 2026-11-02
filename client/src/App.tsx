@@ -127,7 +127,7 @@ function AppContent() {
     retimeFromSegment,
     undoRetime,
     canUndoRetime,
-  } = useTimeline(mediaState.currentTime)
+  } = useTimeline(mediaState.currentTime, mediaState.duration)
 
   const sampleText = segments.find(seg => seg.id === selectedSegmentId)?.text || SAMPLE_LYRIC
 

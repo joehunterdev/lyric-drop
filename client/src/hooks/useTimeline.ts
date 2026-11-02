@@ -63,7 +63,10 @@ const initialTimelineState: TimelineState = {
   pixelsPerSecond: 50,
 }
 
-export function useTimeline(currentTime: number = 0): UseTimelineReturn {
+/**
+ * @param mediaDuration Length of the loaded media - stretching a line never pushes lyrics past it
+ */
+export function useTimeline(currentTime: number = 0, mediaDuration: number = 0): UseTimelineReturn {
   const [segments, setSegments] = useState<LyricSegment[]>([])
   const [lyricSections, setLyricSections] = useState<LyricSection[]>([])
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
@@ -141,56 +144,86 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
   }, [segments, lyricSections, selectedSegmentId])
   
   const updateSegment = useCallback((id: string, updates: Partial<LyricSegment>) => {
-    setSegments(prev => {
-      // Find the index of the segment being updated
-      const segmentIndex = prev.findIndex(seg => seg.id === id)
-      if (segmentIndex === -1) return prev
-      
-      const currentSegment = prev[segmentIndex]
-      
-      // Find which section this segment belongs to
-      const containingSection = lyricSections.find(section =>
-        currentSegment.startTime >= section.startTime && currentSegment.endTime <= section.endTime
+    // Find the index of the segment being updated
+    const segmentIndex = segments.findIndex(seg => seg.id === id)
+    if (segmentIndex === -1) return
+
+    const currentSegment = segments[segmentIndex]
+
+    // Find which section this segment belongs to
+    const containingSection = lyricSections.find(section =>
+      currentSegment.startTime >= section.startTime && currentSegment.endTime <= section.endTime
+    )
+
+    // Calculate the new timing
+    const newStartTime = updates.startTime ?? currentSegment.startTime
+    let newEndTime = updates.endTime ?? currentSegment.endTime
+
+    // Calculate how much the end time would shift
+    let endTimeShift = newEndTime - currentSegment.endTime
+
+    // Extending past the section's spare room grows the section and pushes everything after
+    // it (later sections and their lines) along by the overflow. Nothing may be pushed past
+    // the end of the media.
+    let overflow = 0
+    if (containingSection && endTimeShift > 0) {
+      // Find all segments in this section after the current one
+      const segmentsAfter = segments.filter((seg, idx) =>
+        idx > segmentIndex &&
+        seg.startTime >= containingSection.startTime &&
+        seg.endTime <= containingSection.endTime
       )
-      
-      // Calculate the new timing
-      const newStartTime = updates.startTime ?? currentSegment.startTime
-      let newEndTime = updates.endTime ?? currentSegment.endTime
-      
-      // Calculate how much the end time would shift
-      let endTimeShift = newEndTime - currentSegment.endTime
-      
-      // If extending and in a section, clamp so last segment doesn't exceed section end
-      if (containingSection && endTimeShift > 0) {
-        // Find all segments in this section after the current one
-        const segmentsAfter = prev.filter((seg, idx) => 
-          idx > segmentIndex &&
-          seg.startTime >= containingSection.startTime && 
-          seg.endTime <= containingSection.endTime
+
+      // Find the last segment in the section
+      const lastSegmentInSection = segmentsAfter.length > 0
+        ? segmentsAfter[segmentsAfter.length - 1]
+        : currentSegment
+
+      const room = Math.max(0, containingSection.endTime - lastSegmentInSection.endTime)
+      if (endTimeShift > room) {
+        // How far the furthest section or line can still move before hitting the media end
+        const latestEnd = Math.max(
+          containingSection.endTime,
+          ...segments.map(seg => seg.endTime),
+          ...lyricSections.map(section => section.endTime)
         )
-        
-        // Find the last segment in the section
-        const lastSegmentInSection = segmentsAfter.length > 0
-          ? segmentsAfter[segmentsAfter.length - 1]
-          : currentSegment
-        
-        // Calculate max allowed shift
-        const maxShift = containingSection.endTime - lastSegmentInSection.endTime
-        if (endTimeShift > maxShift) {
-          endTimeShift = Math.max(0, maxShift)
-          newEndTime = currentSegment.endTime + endTimeShift
+        const pushBudget = mediaDuration > 0 ? Math.max(0, mediaDuration - latestEnd) : Infinity
+        overflow = Math.min(endTimeShift - room, pushBudget)
+        endTimeShift = room + overflow
+        newEndTime = currentSegment.endTime + endTimeShift
+      }
+    }
+
+    // If no actual shift, just update text if needed
+    if (endTimeShift === 0 && updates.startTime === undefined && updates.text !== undefined) {
+      setSegments(prev => prev.map(seg =>
+        seg.id === id ? updateSegmentText(seg, updates.text!) : seg
+      ))
+      return
+    }
+
+    if (overflow > 0 && containingSection) {
+      const sectionEnd = containingSection.endTime
+      setLyricSections(prev => prev.map(section => {
+        if (section.id === containingSection.id) return { ...section, endTime: section.endTime + overflow }
+        if (section.startTime >= sectionEnd) {
+          return { ...section, startTime: section.startTime + overflow, endTime: section.endTime + overflow }
         }
-      }
-      
-      // If no actual shift, just update text if needed
-      if (endTimeShift === 0 && updates.startTime === undefined && updates.text !== undefined) {
-        return prev.map(seg => 
-          seg.id === id ? updateSegmentText(seg, updates.text!) : seg
-        )
-      }
-      
+        return section
+      }))
+    }
+
+    setSegments(prev => {
+      const sectionEnd = containingSection?.endTime ?? Infinity
+      const segmentIndex = prev.findIndex(seg => seg.id === id)
+
       // Update all segments
       const updated = prev.map((seg, index) => {
+        // Lines after the grown section move with it
+        if (overflow > 0 && seg.startTime >= sectionEnd) {
+          return updateSegmentTiming(seg, seg.startTime + overflow, seg.endTime + overflow)
+        }
+
         if (seg.id === id) {
           let newSegment = { ...seg }
           
@@ -224,7 +257,7 @@ export function useTimeline(currentTime: number = 0): UseTimelineReturn {
       
       return sortSegmentsByTime(updated)
     })
-  }, [lyricSections])
+  }, [segments, lyricSections, mediaDuration])
   
   const selectSegment = useCallback((id: string | null) => {
     setSelectedSegmentId(id)

@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react'
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Space, ZoomIn, ZoomOut, Gauge, Undo2, ArrowRightFromLine, ArrowLeft, ArrowLeftToLine, ArrowRightToLine, RotateCcw } from 'lucide-react'
 
@@ -175,6 +175,7 @@ export function Timeline({
 
   // A pan or scrub ends with a click on whatever is under the pointer - swallow it
   const suppressClickRef = useRef(false)
+  const [trackGestureMode, setTrackGestureMode] = useState<TrackGesture['mode'] | null>(null)
 
   // Handle click on timeline track to seek
   const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -249,6 +250,7 @@ export function Timeline({
     if (gesture.mode === 'pan' || gesture.mode === 'scrub') suppressClickRef.current = true
     if (gesture.mode === 'scrub') stopScrub()
     gestureRef.current = null
+    setTrackGestureMode(null)
   }, [stopScrub])
 
   useEffect(() => () => {
@@ -271,6 +273,7 @@ export function Timeline({
       timer: window.setTimeout(() => {
         if (gestureRef.current !== gesture || gesture.mode !== 'pending') return
         gesture.mode = 'scrub'
+        setTrackGestureMode('scrub')
         try {
           target.setPointerCapture(pointerId)
         } catch {
@@ -281,6 +284,7 @@ export function Timeline({
       }, LONG_PRESS_MS),
     }
     gestureRef.current = gesture
+    setTrackGestureMode('pending')
   }, [endTrackGesture, getViewport, startScrub])
 
   const handleTrackPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -293,10 +297,12 @@ export function Timeline({
       clearTimeout(gesture.timer)
       if (gesture.pointerType === 'mouse') {
         gesture.mode = 'pan'
+        setTrackGestureMode('pan')
         e.currentTarget.setPointerCapture(e.pointerId)
       } else {
         // Touch/pen: the browser scrolls the timeline itself
         gesture.mode = 'native'
+        setTrackGestureMode('native')
       }
     }
 
@@ -598,7 +604,11 @@ export function Timeline({
         >
         <div
           ref={trackRef}
-          className="absolute inset-y-0 select-none [-webkit-touch-callout:none]"
+          className={cn(
+            'absolute inset-y-0 select-none [-webkit-touch-callout:none]',
+            (trackGestureMode === 'pending' || trackGestureMode === 'native') && 'cursor-grab',
+            (trackGestureMode === 'pan' || trackGestureMode === 'scrub') && 'cursor-grabbing'
+          )}
           style={{ left: -viewOffset, width: Math.max(totalWidth, viewOffset + viewWidth) }}
           onClick={handleTrackClick}
           onClickCapture={handleTrackClickCapture}
@@ -675,7 +685,9 @@ export function Timeline({
               )
               // Clamp segment resize to its section bounds (or video bounds if orphan)
               const segMinTime = containingSection ? containingSection.startTime : 0
-              const segMaxTime = containingSection ? containingSection.endTime : effectiveDuration
+              // Not capped at the section end: stretching past it grows the section and pushes
+              // the rest along (useTimeline limits how far)
+              const segMaxTime = effectiveDuration
               
               return (
                 <TimelineSegment
